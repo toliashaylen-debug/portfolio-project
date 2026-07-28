@@ -1,0 +1,2201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Desk — Safra</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+html, body { margin: 0; padding: 0; height: 100%; }
+#root { min-height: 100vh; }
+
+.desk-app {
+  --bg: #EEF2F7;
+  --panel: #FFFFFF;
+  --panel-2: #F3F6FA;
+  --panel-3: #E7ECF3;
+  --border: #D9E1EA;
+  --border-soft: #E8EDF3;
+  --text: #12233F;
+  --text-dim: #55647D;
+  --text-faint: #8996AC;
+  --accent: #144B87;
+  --accent-dim: #6089B3;
+  --accent-bg: rgba(20,75,135,0.08);
+  --pos: #1E8E5A;
+  --pos-bg: rgba(30,142,90,0.10);
+  --neg: #C7333F;
+  --neg-bg: rgba(199,51,63,0.09);
+  --radius: 8px;
+  --radius-sm: 5px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 28px; --sp-7: 40px;
+  --shadow-card: 0 1px 2px rgba(18,35,63,0.05), 0 4px 14px rgba(18,35,63,0.06);
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+.desk-app * { box-sizing: border-box; }
+.desk-app .mono { font-family: 'JetBrains Mono', monospace; }
+.desk-app .display { font-family: 'Space Grotesk', sans-serif; }
+.desk-app button:focus-visible, .desk-app input:focus-visible, .desk-app select:focus-visible {
+  outline: 2px solid var(--accent-dim); outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-spin { animation-duration: 1.6s; }
+}
+
+.desk-shell { display: flex; flex: 1; min-height: 0; }
+.desk-nav {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-5) 0;
+  display: flex;
+  flex-direction: column;
+}
+.desk-nav-brand {
+  padding: 0 var(--sp-5) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.desk-brand-mark { flex-shrink: 0; }
+.desk-nav-brand .brand-text .eyebrow { font-size: 9.5px; letter-spacing: 0.14em; color: var(--accent); text-transform: uppercase; }
+.desk-nav-brand h1 { font-size: 16px; margin: 2px 0 0; font-weight: 600; line-height: 1.2; }
+.desk-nav-item {
+  padding: 10px var(--sp-5);
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.desk-nav-item:hover { color: var(--text); background: var(--panel-2); }
+.desk-nav-item.active { color: var(--text); border-left-color: var(--accent); background: var(--panel-2); font-weight: 600; }
+.desk-nav-item .strategy-tag { display:block; font-size: 10px; color: var(--text-faint); margin-top:3px; font-weight:400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk-nav-foot { margin-top: auto; padding: var(--sp-3) var(--sp-5) 0; border-top: 1px solid var(--border); }
+.desk-nav-foot button { all: unset; cursor: pointer; font-size: 11px; color: var(--text-faint); transition: color 0.12s; }
+.desk-nav-foot button:hover { color: var(--neg); }
+
+.desk-main { flex: 1; overflow-y: auto; padding: var(--sp-6) var(--sp-7) 60px; min-width: 0; }
+.desk-main h2.display { font-size: 21px; margin: 0 0 5px; font-weight: 600; letter-spacing: -0.01em; }
+.desk-sub { color: var(--text-dim); font-size: 13px; margin-bottom: var(--sp-6); }
+
+.desk-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-4); margin-bottom: var(--sp-6); }
+@media (max-width: 900px) { .desk-grid3 { grid-template-columns: 1fr; } .desk-nav { width: 150px; } .desk-main { padding: var(--sp-5) var(--sp-4) 48px; } }
+.desk-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--sp-4) var(--sp-5);
+  cursor: default;
+  transition: border-color 0.15s;
+}
+.desk-card.clickable { cursor: pointer; }
+.desk-card.clickable:hover { border-color: var(--accent-dim); }
+.desk-card-top { display:flex; justify-content: space-between; align-items:flex-start; gap: var(--sp-3); }
+.desk-card-name { font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; }
+.desk-card-strategy { font-size: 11px; color: var(--text-dim); margin-top: 3px; max-width: 220px; line-height: 1.5; }
+.desk-card-value { font-family: 'JetBrains Mono', monospace; font-size: 23px; margin-top: var(--sp-3); font-weight: 600; letter-spacing: -0.01em; }
+.desk-chip { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+.desk-chip.up { color: var(--pos); background: var(--pos-bg); }
+.desk-chip.down { color: var(--neg); background: var(--neg-bg); }
+.desk-chip.flat { color: var(--text-dim); background: var(--panel-2); }
+.desk-sleeve-chip { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 7px; border-radius: 4px; white-space: nowrap; display: inline-block; }
+.desk-mini-row { display:flex; justify-content: space-between; font-size:11.5px; color: var(--text-dim); margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px solid var(--border-soft); }
+.desk-mini-row:first-of-type { border-top: none; padding-top: 0; }
+
+table.desk-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.desk-table th {
+  text-align: right; font-weight: 600; color: var(--text-faint); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.05em; padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border); background: var(--panel-2);
+}
+table.desk-table th:first-child { border-top-left-radius: var(--radius-sm); }
+table.desk-table th:last-child { border-top-right-radius: var(--radius-sm); }
+table.desk-table th:first-child, table.desk-table td:first-child { text-align: left; }
+table.desk-table td { padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border-soft); font-family: 'JetBrains Mono', monospace; text-align: right; }
+table.desk-table tbody tr:last-child td { border-bottom: none; }
+table.desk-table tr:hover td { background: var(--panel-2); }
+table.desk-table td.ticker { font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: 0.02em; font-size: 13px; }
+table.desk-table td.muted { color: var(--text-dim); font-family: 'Inter', sans-serif; font-size: 12px; }
+.desk-tag { font-size: 10px; color: var(--text-faint); font-family: 'Inter', sans-serif; }
+
+.desk-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-5); margin-bottom: var(--sp-5); box-shadow: var(--shadow-card); }
+.desk-panel-head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.desk-panel-head h3 { margin: 0; }
+.desk-panel h3 { margin: 0 0 var(--sp-4); font-size: 13.5px; font-weight: 600; letter-spacing: 0.01em; }
+.desk-panel h3 .unit { color: var(--text-dim); font-weight: 400; font-size: 11px; }
+.desk-row { display:flex; gap: var(--sp-3); align-items:center; flex-wrap: wrap; }
+.desk-input {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 10px; border-radius: var(--radius-sm); font-family: 'Inter', sans-serif; font-size: 13px;
+  transition: border-color 0.12s;
+}
+.desk-input:hover { border-color: var(--accent-dim); }
+.desk-input.mono { font-family: 'JetBrains Mono', monospace; }
+.desk-btn {
+  background: var(--accent); color: #FFFFFF; border: none; padding: 9px 16px; border-radius: var(--radius-sm);
+  font-weight: 600; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif; transition: filter 0.12s;
+}
+.desk-btn:hover { filter: brightness(1.15); }
+.desk-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.desk-btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.desk-btn.ghost:hover { border-color: var(--accent-dim); filter: none; color: var(--accent); }
+.desk-note { font-size: 12px; color: var(--text-dim); margin-top: var(--sp-2); line-height: 1.55; }
+.desk-error { background: var(--neg-bg); border: 1px solid rgba(199,51,63,0.28); color: var(--neg); padding: 10px 13px; border-radius: var(--radius-sm); font-size: 12.5px; margin-bottom: var(--sp-4); line-height: 1.5; }
+.desk-ok { background: var(--pos-bg); border: 1px solid rgba(30,142,90,0.28); color: var(--pos); padding: 10px 13px; border-radius: var(--radius-sm); font-size: 12.5px; margin-bottom: var(--sp-4); line-height: 1.5; }
+
+.desk-gate { flex: 1; display:flex; align-items:center; justify-content:center; }
+.desk-gate-box { width: 350px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-6); box-shadow: var(--shadow-card); }
+.desk-gate-box .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: var(--sp-4); }
+.desk-gate-box .eyebrow { font-size: 10px; letter-spacing: 0.16em; color: var(--accent); text-transform: uppercase; }
+.desk-gate-box h1 { font-size: 20px; margin: 6px 0 var(--sp-5); font-weight: 600; }
+.desk-gate-box .desk-input { width: 100%; margin-bottom: var(--sp-3); }
+.desk-gate-box .desk-btn { width: 100%; }
+.desk-setup-portfolio { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--sp-3); margin-bottom: var(--sp-3); background: var(--panel-2); }
+.desk-setup-portfolio .desk-input { width: 100%; margin-bottom: var(--sp-2); }
+
+.desk-commentary-entry { border-bottom: 1px solid var(--border-soft); padding: var(--sp-4) 0; }
+.desk-commentary-entry:last-child { border-bottom: none; padding-bottom: 0; }
+.desk-commentary-entry:first-child { padding-top: 0; }
+.desk-commentary-date { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); margin-bottom: var(--sp-2); }
+.desk-commentary-text { font-size: 13.5px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+
+.desk-spin { display:inline-block; width:12px; height:12px; border:2px solid var(--border); border-top-color: var(--accent); border-radius:50%; animation: desk-spin 0.7s linear infinite; margin-right:6px; vertical-align:middle;}
+@keyframes desk-spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+'use strict';
+
+/* ===================== DOM helper (replaces JSX/React.createElement) ===================== */
+var SVG_TAGS = new Set(['svg','rect','path','circle','text','g','defs','linearGradient','stop','polyline','line','ellipse']);
+
+function flattenChildren(children) {
+  var out = [];
+  (function walk(arr) {
+    for (var i = 0; i < arr.length; i++) {
+      var c = arr[i];
+      if (Array.isArray(c)) walk(c); else out.push(c);
+    }
+  })(children);
+  return out;
+}
+
+// h(tag, props, ...children) — tag is a string (builds a real DOM node) or a
+// function (a "component": called directly with props+children, must return a Node).
+function h(tag, props) {
+  var children = Array.prototype.slice.call(arguments, 2);
+  props = props || {};
+  var flatChildren = flattenChildren(children);
+  if (typeof tag === 'function') {
+    var merged = {};
+    for (var k in props) merged[k] = props[k];
+    merged.children = flatChildren;
+    return tag(merged);
+  }
+  var isSvg = SVG_TAGS.has(tag);
+  var el = isSvg ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
+  for (var key in props) {
+    var val = props[key];
+    if (val === undefined || val === null || val === false) continue;
+    if (key === 'className') { if (isSvg) el.setAttribute('class', val); else el.className = val; }
+    else if (key === 'style' && typeof val === 'object') { for (var sk in val) { if (val[sk] !== undefined && val[sk] !== null) el.style[sk] = val[sk]; } }
+    else if (key === 'ref' && typeof val === 'function') { val(el); }
+    else if (key === 'key') { /* no-op, not needed without a virtual DOM */ }
+    else if (key.indexOf('on') === 0 && typeof val === 'function') {
+      var evt = key.slice(2).toLowerCase();
+      if (evt === 'change') evt = 'input';
+      el.addEventListener(evt, val);
+    }
+    else if (key === 'checked' && tag === 'input') { el.checked = !!val; }
+    else if (key === 'value' && (tag === 'input' || tag === 'select' || tag === 'textarea')) { el.value = val; }
+    else if (key === 'html') { el.innerHTML = val; }
+    else if (key === 'disabled') { if (val) el.setAttribute('disabled', ''); }
+    else { el.setAttribute(key, val); }
+  }
+  for (var i = 0; i < flatChildren.length; i++) {
+    var child = flatChildren[i];
+    if (child === null || child === undefined || child === false || child === true) continue;
+    if (child instanceof Node) el.appendChild(child);
+    else el.appendChild(document.createTextNode(String(child)));
+  }
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+function mountInto(container, node) { clear(container); container.appendChild(node); }
+
+/* ===================== Constants ===================== */
+var PORTFOLIO_IDS = ['p1', 'p2', 'p3'];
+var DEFAULT_NAMES = ["Shaylen's Portfolio", "Antonio's Portfolio", "Israel's Portfolio"];
+
+var PORTFOLIO_SOURCING = {
+  p1: {
+    positionsSheets: ['portfolio - cover page', 'cover page'],
+    weightMode: 'shareCount',
+    readSheets: ['portfolio - cover page', 'cover page', 'backlog (ledger)', 'backlog', 'daily performance', 'benchmark'],
+    strategySheets: ['portfolio - cover page', 'cover page'],
+    benchmarkSheets: ['benchmark']
+  },
+  p2: {
+    positionsSheets: ['active portfolio'],
+    weightMode: 'value',
+    readSheets: ['active portfolio', 'eq backlog', 'fx_backlog', 'fx backlog', 'fi backlog', 'benchmark'],
+    strategySheets: ['active portfolio'],
+    benchmarkSheets: ['benchmark']
+  },
+  p3: null
+};
+
+var SLEEVE_COLORS = { equity: '#144B87', fixedIncome: '#1E8E5A', other: '#8996AC' };
+var SLEEVE_LABELS = { equity: 'Equity', fixedIncome: 'Fixed income', other: 'Other' };
+var SECTOR_PALETTE = ['#144B87', '#1E8E5A', '#6089B3', '#C7333F', '#6B5CA0', '#2C8F8F', '#B5651D', '#6B7B2A', '#A34C82', '#55647D'];
+
+function normSheetName(s) { return String(s || '').trim().toLowerCase(); }
+function sheetAllowed(sheetName, allowedList) {
+  if (!allowedList) return true;
+  var n = normSheetName(sheetName);
+  return allowedList.some(function (a) { return n === a || n.includes(a); });
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function fmtMoney(n, opts) {
+  opts = opts || {};
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  var sign = n < 0 ? '-' : '';
+  var abs = Math.abs(n);
+  var dec = opts.decimals === undefined ? 0 : opts.decimals;
+  return sign + '$' + abs.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function fmtPct(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  var sign = n > 0 ? '+' : '';
+  return sign + (n * 100).toFixed(2) + '%';
+}
+function chipClass(n) {
+  if (n === null || n === undefined || isNaN(n) || n === 0) return 'flat';
+  return n > 0 ? 'up' : 'down';
+}
+
+/* ===================== Storage ===================== */
+async function safeGet(key, shared) {
+  try {
+    const r = await window.storage.get(key, shared);
+    return r ? r.value : null;
+  } catch (e) {
+    return null;
+  }
+}
+async function safeSet(key, value, shared) {
+  try {
+    const r = await window.storage.set(key, value, shared);
+    return !!r;
+  } catch (e) {
+    console.error('storage.set failed for', key, e);
+    return false;
+  }
+}
+async function verifiedSet(key, value, shared) {
+  const ok = await safeSet(key, value, shared);
+  if (!ok) return false;
+  const readBack = await safeGet(key, shared);
+  return readBack === value;
+}
+async function safeDelete(key, shared) {
+  try { await window.storage.delete(key, shared); } catch (e) { /* ignore */ }
+}
+
+/* ===================== Workbook reading + AI extraction ===================== */
+function trimGrid(aoa) {
+  let rows = aoa.filter((r) => r && r.some((c) => c !== null && c !== undefined && c !== ''));
+  rows = rows.slice(0, 400);
+  let maxCol = 0;
+  rows.forEach((r) => { for (let i = r.length - 1; i >= 0; i--) { if (r[i] !== null && r[i] !== undefined && r[i] !== '') { maxCol = Math.max(maxCol, i + 1); break; } } });
+  return rows.map((r) => r.slice(0, maxCol));
+}
+function gridToTSV(rows) {
+  return rows.map((r) => r.map((c) => (c === null || c === undefined ? '' : String(c))).join('\t')).join('\n');
+}
+function readWorkbookSheets(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const sheets = wb.SheetNames.map((sheetName) => {
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
+          return { sheetName, grid: trimGrid(aoa) };
+        }).filter((s) => s.grid.length);
+        if (!sheets.length) { reject(new Error('This workbook has no data in it.')); return; }
+        resolve(sheets);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error('Could not read the file.'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+function stripJsonFence(text) {
+  return text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+}
+function parseJsonLoosely(rawText) {
+  const cleaned = stripJsonFence(rawText);
+  const attempts = [cleaned];
+  const start = cleaned.indexOf('{');
+  if (start !== -1) {
+    let depth = 0;
+    for (let i = start; i < cleaned.length; i++) {
+      if (cleaned[i] === '{') depth++;
+      else if (cleaned[i] === '}') {
+        depth--;
+        if (depth === 0) { attempts.push(cleaned.slice(start, i + 1)); break; }
+      }
+    }
+  }
+  const last = attempts[attempts.length - 1];
+  attempts.push(last.replace(/,\s*([}\]])/g, '$1'));
+  for (const candidate of attempts) {
+    try { return JSON.parse(candidate); } catch (e) { /* try the next attempt */ }
+  }
+  return null;
+}
+function cleanProse(text) {
+  if (!text) return text;
+  return text
+    .split('\n')
+    .map((line) => line.replace(/^\s*[-*•]\s*/, '').replace(/^\s*\d+[.)]\s*/, '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function sleeveFromSection(sectionText) {
+  if (!sectionText) return null;
+  const trimmed = String(sectionText).trim().toLowerCase();
+  if (trimmed === 'fi') return 'fixedIncome';
+  if (trimmed === 'eq') return 'equity';
+  const fiKeywords = ['fixed income', 'bond', 'treasury', 'sovereign', 'money market', 't-bill', 'tbill', 'notes', 'gilt'];
+  const eqKeywords = ['equity', 'equities', 'stock', 'common share'];
+  const hasFi = fiKeywords.some((k) => trimmed.includes(k));
+  const hasEq = eqKeywords.some((k) => trimmed.includes(k));
+  if (hasFi && !hasEq) return 'fixedIncome';
+  if (hasEq && !hasFi) return 'equity';
+  return null;
+}
+async function callClaude(prompt, maxTokens) {
+  maxTokens = maxTokens || 900;
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!res.ok) throw new Error('AI request failed (' + res.status + ')');
+  const data = await res.json();
+  return (data.content || []).map((c) => c.text || '').filter(Boolean).join('\n').trim();
+}
+async function extractHoldingsViaAI(sheets) {
+  const sheetBlocks = sheets.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid)}\n</sheet>`).join('\n\n');
+  const prompt = `You are reading a raw investment portfolio spreadsheet, sheet by sheet, given below as tab-separated grids. Sheets may use different, inconsistent headers from one another, may contain more than one stacked table in the same sheet (e.g. an ETF table followed by a separate bond table further down), may have blank spacer rows or title rows.
+
+PART 1 — holdings. For each sheet, find every distinct holding (equity, ETF, bond, option, or any other tradeable instrument) regardless of exact column names. A holding needs an identifier (ticker symbol, ISIN, or name if nothing else exists), a share/unit quantity, and a current price. If a sheet has multiple stacked tables, extract holdings from all of them. Ignore rows that are clearly totals, running balances, or formula leftovers rather than actual holdings.
+
+For "shares", use the unit/quantity column even if its value is negative (e.g. "Net Units" of -600) — a negative quantity is a legitimate short or written position (e.g. a written/short call option), not an error to skip or a sign to drop.
+
+For "costBasis", this field must be a PER-SHARE / PER-UNIT figure, since it gets multiplied by shares elsewhere. Some sheets have BOTH a total cost column (the full dollar amount originally invested, e.g. "Cost Basis ($)") AND a separate per-unit column (e.g. "Avg Cost/Unit ($)", "Average Cost", "Bought Price", "Stock Bought Price", "Purchase Price") — when both exist, always use the PER-UNIT one for "costBasis", never the total-dollars one. If only a total-dollars column exists with no per-unit equivalent, divide it by shares yourself to get a per-unit cost basis.
+
+For "price" (current price), match "Current Price", "Last Price", "Mkt Price", "Current Px" etc.
+
+Sheets are very often organized under section header rows — a row containing just a label like "FIXED INCOME", "EQUITIES", "Sovereign Bonds", "Corporate Bonds", "Money Market", "US Equity", "Foreign Equity", "Options" — that apply to every row below them until the next section header changes it. For EVERY holding, report the single nearest section-header row text that sits directly above it in "section" — copy it verbatim (e.g. "Corporate Bonds", "US Equity"). If a sheet has nested headers (a broad one like "FIXED INCOME" and then a narrower one like "Corporate Bonds" underneath it), report the narrower/nearest one. This must reflect the actual row position in the sheet — re-check which section a row falls under every time the section changes, rather than reusing the sheet's very first header for everything below it. Also still set "sleeve" as your own best classification, but "section" is mandatory whenever a sheet has any such header rows — leave it null only if the sheet genuinely has no section headers at all.
+
+This matters because bond identifiers are frequently written as "<issuer or reference> <coupon> <maturity date>" — e.g. "AAPL 4/3 05/12/35" is Apple's corporate BOND (a 4.75%-coupon bond maturing 2035), and "T 4 3/8 05/15/36" is a Treasury bond — NOT the issuer's equity ticker, even though a recognizable company name or ticker-like string appears inside it. Report its section as whatever bond sub-section it's actually under (e.g. "Corporate Bonds"), not as equity.
+
+If a fixed-income holding's row has a duration figure (e.g. a "Duration" or "Mod. Duration" column, given in years), report it as "durationYears" — leave null if not present, do not estimate it yourself.
+
+If a row already has its own weight explicitly given (e.g. a "Portfolio Weight" column, as a percentage or decimal like 0.0548), report that exact value as "reportedWeightPct" as a number out of 100 (e.g. 5.48, not 0.0548) — do not recompute or estimate this yourself, only report it if the column is actually present.
+
+If a row already has its own total market value explicitly given in dollars (e.g. a column called "Position Market Value", "Position Value", "Mkt Value ($)", "Market Value" — this is especially important for foreign-currency holdings where it already reflects FX conversion, or bonds where it may include accrued interest that a plain shares×price calculation would miss), report that exact number as "positionMarketValue". Do not recompute, convert, or estimate this yourself — only report it if such a column is actually present.
+
+If a row already has its own unrealized profit/loss figure explicitly given in dollars (e.g. "Unrealized PnL ($)", "Unrealized P&L", "Unreal PnL ($)"), report that exact number as "reportedUnrealizedPL". This matters a lot for foreign-currency holdings: their cost-basis column is sometimes labeled as if it were in dollars (e.g. "Average Cost ($)") but is actually recorded in the local currency (matching a local-currency price column next to it) — recomputing P&L from cost×shares in that case would silently mix currencies and produce a badly wrong number. Using the sheet's own already-computed PnL sidesteps that entirely, so prefer it whenever the column exists.
+
+PART 2 — portfolio-level summaries. Separately, some sheets track the overall portfolio rather than individual holdings — e.g. a dated daily/live log of ending balance and equity/fixed-income market values, or a sheet stating the current equity vs. fixed-income allocation weight directly. These are usually more authoritative for the current total value and allocation than summing individual position rows, since position rows can go stale after trades. Find any such sheet and report:
+- If it's a dated log (a date column paired with figures per row, e.g. a "CURRENT (LIVE)" row or a daily log): find the row with the LATEST real date where the actual balance/value figure itself is genuinely populated — skip any row where that figure is blank, even if an adjacent column (like a percentage change) has some other value in it (a formula error like #DIV/0!, or a bare placeholder like -1, 0, or N/A) — a populated adjacent column doesn't mean the row itself has real data. From that row, report "asOfDate" and whichever of these it states: "totalValue" (an overall ending balance/NAV figure), and/or "equityValue"/"fixedIncomeValue" (the market value held in each sleeve, in dollars — e.g. a column literally called "Equity Market Value" or "Fixed Income Market Value").
+- If it states current equity/fixed-income weights directly as percentages or decimals (e.g. 0.48), report them as "equityWeightPct" and "fixedIncomeWeightPct" (as numbers out of 100, e.g. 48.05 not 0.4805) instead of equityValue/fixedIncomeValue. These sheets are often not dated — if there's no date, leave "asOfDate" null.
+Only report fields you actually find written in the sheet; leave others null. Do not calculate, sum, or infer any of these numbers yourself from the holdings — only report values that are explicitly already present in a summary/log sheet.
+
+Respond with ONLY strict JSON, no markdown fences, no text outside the JSON, in exactly this shape:
+{"sheets":[{"sheetName":string,"isPositionsSheet":boolean,"holdings":[{"ticker":string,"name":string|null,"shares":number,"costBasis":number|null,"price":number,"sector":string|null,"assetType":"equity"|"etf"|"bond"|"other","sleeve":"equity"|"fixedIncome"|"other","durationYears":number|null,"section":string|null,"reportedWeightPct":number|null,"positionMarketValue":number|null,"reportedUnrealizedPL":number|null}]}],"summarySheets":[{"sheetName":string,"asOfDate":string|null,"totalValue":number|null,"equityValue":number|null,"fixedIncomeValue":number|null,"equityWeightPct":number|null,"fixedIncomeWeightPct":number|null}]}
+
+Only include a sheet in "sheets" if isPositionsSheet is true or it has at least one holding. Only include a sheet in "summarySheets" if you found at least one of totalValue/equityValue/fixedIncomeValue/equityWeightPct/fixedIncomeWeightPct in it.
+
+Sheets:
+${sheetBlocks}`;
+
+  let parsed = null;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let raw;
+    try {
+      raw = await callClaude(prompt, 4500);
+    } catch (e) {
+      if (attempt === maxAttempts - 1) throw e;
+      continue;
+    }
+    const candidate = parseJsonLoosely(raw);
+    if (candidate && Array.isArray(candidate.sheets)) { parsed = candidate; break; }
+  }
+  if (!parsed) {
+    throw new Error(`The AI reader couldn't produce usable output after ${maxAttempts} attempts. Try uploading again — if it keeps happening, the file may have unusual formatting worth a closer look.`);
+  }
+
+  const positionSheets = parsed.sheets.map((s) => {
+    const holdings = (s.holdings || [])
+      .filter((h) => h && h.ticker && h.shares && h.price)
+      .map((h) => ({
+        ticker: String(h.ticker).trim().toUpperCase(),
+        name: h.name || null,
+        shares: Number(h.shares),
+        costBasis: h.costBasis === null || h.costBasis === undefined ? Number(h.price) : Number(h.costBasis),
+        price: Number(h.price),
+        sector: h.sector || '',
+        assetType: h.assetType || 'other',
+        durationYears: h.durationYears === null || h.durationYears === undefined ? null : Number(h.durationYears),
+        reportedWeightPct: h.reportedWeightPct === null || h.reportedWeightPct === undefined ? null : Number(h.reportedWeightPct),
+        positionMarketValue: h.positionMarketValue === null || h.positionMarketValue === undefined ? null : Number(h.positionMarketValue),
+        reportedUnrealizedPL: h.reportedUnrealizedPL === null || h.reportedUnrealizedPL === undefined ? null : Number(h.reportedUnrealizedPL),
+        sourceSheet: s.sheetName,
+        sleeve: sleeveFromSection(h.section) || (h.sleeve === 'fixedIncome' || h.sleeve === 'equity' ? h.sleeve : (h.assetType === 'bond' ? 'fixedIncome' : 'other'))
+      }))
+      .filter((h) => !isNaN(h.shares) && !isNaN(h.price) && !isNaN(h.costBasis));
+    return {
+      sheetName: s.sheetName,
+      positions: holdings,
+      tickers: holdings.map((h) => h.ticker),
+      defaultChecked: true
+    };
+  }).filter((s) => s.positions.length);
+
+  const summarySheets = (Array.isArray(parsed.summarySheets) ? parsed.summarySheets : []).map((s) => ({
+    sheetName: s.sheetName,
+    asOfDate: s.asOfDate || null,
+    totalValue: s.totalValue === null || s.totalValue === undefined ? null : Number(s.totalValue),
+    equityValue: s.equityValue === null || s.equityValue === undefined ? null : Number(s.equityValue),
+    fixedIncomeValue: s.fixedIncomeValue === null || s.fixedIncomeValue === undefined ? null : Number(s.fixedIncomeValue),
+    equityWeightPct: s.equityWeightPct === null || s.equityWeightPct === undefined ? null : Number(s.equityWeightPct),
+    fixedIncomeWeightPct: s.fixedIncomeWeightPct === null || s.fixedIncomeWeightPct === undefined ? null : Number(s.fixedIncomeWeightPct)
+  }));
+
+  return { positionSheets, summarySheets };
+}
+function pickBestSummary(summarySheets, field) {
+  const withField = summarySheets.filter((s) => s[field] !== null && s[field] !== undefined && !isNaN(s[field]));
+  if (!withField.length) return null;
+  const dated = withField.filter((s) => s.asOfDate && !isNaN(new Date(s.asOfDate).getTime()));
+  if (dated.length) {
+    dated.sort((a, b) => new Date(b.asOfDate) - new Date(a.asOfDate));
+    return dated[0];
+  }
+  return withField[0];
+}
+function buildReportedSummary(summarySheets) {
+  if (!summarySheets || !summarySheets.length) return null;
+  const totalValueBest = pickBestSummary(summarySheets, 'totalValue');
+  const equityPctBest = pickBestSummary(summarySheets, 'equityWeightPct');
+  const fiPctBest = pickBestSummary(summarySheets, 'fixedIncomeWeightPct');
+  const equityValBest = pickBestSummary(summarySheets, 'equityValue');
+  const fiValBest = pickBestSummary(summarySheets, 'fixedIncomeValue');
+
+  let equityWeightPct = equityPctBest ? equityPctBest.equityWeightPct : null;
+  let fixedIncomeWeightPct = fiPctBest ? fiPctBest.fixedIncomeWeightPct : null;
+  let weightsSheet = equityPctBest ? equityPctBest.sheetName : (fiPctBest ? fiPctBest.sheetName : null);
+
+  if (equityWeightPct === null && fixedIncomeWeightPct === null && (equityValBest || fiValBest)) {
+    const denom = (totalValueBest && totalValueBest.totalValue) || null;
+    const eqVal = equityValBest ? equityValBest.equityValue : null;
+    const fiVal = fiValBest ? fiValBest.fixedIncomeValue : null;
+    const base = denom || ((eqVal || 0) + (fiVal || 0)) || null;
+    if (base) {
+      if (eqVal !== null) equityWeightPct = (eqVal / base) * 100;
+      if (fiVal !== null) fixedIncomeWeightPct = (fiVal / base) * 100;
+      weightsSheet = (equityValBest || fiValBest).sheetName;
+    }
+  }
+
+  if (!totalValueBest && equityWeightPct === null && fixedIncomeWeightPct === null) return null;
+  return {
+    totalValue: totalValueBest ? totalValueBest.totalValue : null,
+    totalValueAsOf: totalValueBest ? totalValueBest.asOfDate : null,
+    totalValueSheet: totalValueBest ? totalValueBest.sheetName : null,
+    equityWeightPct, fixedIncomeWeightPct, weightsSheet
+  };
+}
+function backfillSectors(positionSheets) {
+  const sectorByTicker = {};
+  positionSheets.forEach((sheet) => {
+    sheet.positions.forEach((p) => {
+      if (p.sector && p.sector.trim() && !sectorByTicker[p.ticker]) {
+        sectorByTicker[p.ticker] = p.sector.trim();
+      }
+    });
+  });
+  return positionSheets.map((sheet) => ({
+    ...sheet,
+    positions: sheet.positions.map((p) => (p.sector && p.sector.trim() ? p : { ...p, sector: sectorByTicker[p.ticker] || p.sector }))
+  }));
+}
+function readWorkbook(file) {
+  return readWorkbookSheets(file).then((sheets) => extractHoldingsViaAI(sheets).then((result) => ({ ...result, rawSheets: sheets }))).then(({ positionSheets, summarySheets, rawSheets }) => {
+    if (!positionSheets.length) throw new Error('The AI reader could not find any holdings in this file.');
+    return { positionSheets: backfillSectors(positionSheets), reportedSummary: buildReportedSummary(summarySheets), rawSheets };
+  });
+}
+
+/* ===================== Benchmark comparison extraction ===================== */
+async function extractBenchmarkComparison(sheets) {
+  const sheetBlocks = sheets.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid)}\n</sheet>`).join('\n\n');
+  const prompt = `You are reading a "Benchmark" sheet from an investment portfolio workbook, given below as tab-separated grids. This kind of sheet compares the portfolio's own equity and fixed-income performance against market benchmarks — typically the S&P 500 (or "SPX") for equities, and LQD (an investment-grade corporate bond ETF) for fixed income — usually over some tracked date range. Different portfolios lay this out very differently — some have just a simple summary figure, others have a full daily time series with volatility and Sharpe ratio calculations. Read whatever is actually there.
+
+For the EQUITY comparison, find:
+- The benchmark's name (usually "S&P 500" or "SPX")
+- The benchmark's cumulative return over the tracked period, as a percentage (look for a running "Cum %" column or a labeled summary figure like "SPX Index — same window"; if there's a daily running series, use the LAST/most complete value, representing the full period's return)
+- The portfolio's own cumulative equity return over the SAME period (often labeled something like "Equity Cum. %", "My portfolio equities", "My Equity — since inception", "Equity Cum % (CF-adj)")
+- If explicitly present: the benchmark's and portfolio's annualized volatility and Sharpe ratio — leave null if not present, do not estimate these yourself
+- The benchmark's own price/date time series if given (e.g. daily closes) — report up to 30 evenly-sampled points as {date, value}; if the series is short, report all of it
+
+Find the same set of fields for the FIXED INCOME comparison, where the benchmark is typically "LQD".
+
+Also report the tracked period's start and end date if stated anywhere (e.g. a "Start Date"/"End Date" cell, or the first/last date in a series).
+
+Report all percentages as numbers out of 100 (e.g. 2.6 for 2.6%), even if the sheet stores them as decimals like 0.026.
+
+If you cannot find any equity or fixed-income benchmark comparison data at all in what's given, set "found" to false and leave everything else null or empty — do not invent or estimate any figure that isn't actually present.
+
+Respond with ONLY strict JSON, no markdown fences, no text outside the JSON, in exactly this shape:
+{"found":boolean,"sheetUsed":string|null,"periodStart":string|null,"periodEnd":string|null,"equity":{"benchmarkName":string|null,"benchmarkReturnPct":number|null,"portfolioReturnPct":number|null,"benchmarkVolPct":number|null,"portfolioVolPct":number|null,"benchmarkSharpe":number|null,"portfolioSharpe":number|null,"benchmarkSeries":[{"date":string,"value":number}]},"fixedIncome":{"benchmarkName":string|null,"benchmarkReturnPct":number|null,"portfolioReturnPct":number|null,"benchmarkVolPct":number|null,"portfolioVolPct":number|null,"benchmarkSharpe":number|null,"portfolioSharpe":number|null,"benchmarkSeries":[{"date":string,"value":number}]}}
+
+Sheets:
+${sheetBlocks}`;
+
+  let parsed = null;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let raw;
+    try {
+      raw = await callClaude(prompt, 3000);
+    } catch (e) {
+      if (attempt === maxAttempts - 1) throw e;
+      continue;
+    }
+    const candidate = parseJsonLoosely(raw);
+    if (candidate && typeof candidate.found === 'boolean') { parsed = candidate; break; }
+  }
+  if (!parsed) {
+    throw new Error(`The AI reader couldn't produce usable output after ${maxAttempts} attempts. Try again — if it keeps happening, the sheet may have unusual formatting worth a closer look.`);
+  }
+  return parsed;
+}
+
+/* ===================== Computation engine ===================== */
+function valueOf(p) {
+  return (typeof p.positionMarketValue === 'number' && !isNaN(p.positionMarketValue)) ? p.positionMarketValue : p.shares * p.price;
+}
+function plOf(p) {
+  if (typeof p.reportedUnrealizedPL === 'number' && !isNaN(p.reportedUnrealizedPL)) return p.reportedUnrealizedPL;
+  return valueOf(p) - p.shares * p.costBasis;
+}
+function flagPosition(p) {
+  if (typeof p.reportedUnrealizedPL === 'number' && !isNaN(p.reportedUnrealizedPL)) return null;
+  const value = valueOf(p);
+  const pl = plOf(p);
+  if (!value) return null;
+  if (Math.abs(pl) > 0.6 * Math.abs(value)) {
+    return "Computed P&L looks unusually large relative to this position's size — check whether its cost-basis column is in the same currency/unit as its price or market value column in the source file.";
+  }
+  return null;
+}
+function computeSnapshotValue(positions) {
+  return positions.reduce((sum, p) => sum + valueOf(p), 0);
+}
+function computeSnapshotCostValue(positions) {
+  return positions.reduce((sum, p) => sum + p.shares * p.costBasis, 0);
+}
+function enrichPositions(history) {
+  if (!history.length) return [];
+  const latest = history[history.length - 1];
+  const prev = history.length > 1 ? history[history.length - 2] : null;
+  const prevByTicker = {};
+  if (prev) prev.positions.forEach((p) => { prevByTicker[p.ticker] = p; });
+
+  return latest.positions.map((p) => {
+    const prevP = prevByTicker[p.ticker];
+    const value = valueOf(p);
+    const costValue = p.shares * p.costBasis;
+    const unrealizedPL = plOf(p);
+    let dayChangeDollar = null, dayChangePct = null;
+    if (prevP) {
+      const prevValue = valueOf(prevP);
+      dayChangeDollar = value - prevValue;
+      dayChangePct = prevValue !== 0 ? (value - prevValue) / prevValue : null;
+    }
+    return { ...p, value, costValue, unrealizedPL, dayChangeDollar, dayChangePct, isNew: !prevP };
+  });
+}
+function portfolioMetrics(history) {
+  if (!history.length) return null;
+  const positions = enrichPositions(history);
+  const totalValue = positions.reduce((s, p) => s + p.value, 0);
+  const totalCost = positions.reduce((s, p) => s + p.costValue, 0);
+  const totalPL = positions.reduce((s, p) => s + p.unrealizedPL, 0);
+  const dayChangeDollar = positions.reduce((s, p) => s + (p.dayChangeDollar || 0), 0);
+  const prev = history.length > 1 ? history[history.length - 2] : null;
+  const prevTotalValue = prev ? computeSnapshotValue(prev.positions) : null;
+  const dayChangePct = prevTotalValue ? dayChangeDollar / prevTotalValue : null;
+  const lastSnapshot = history[history.length - 1];
+  const lastDate = lastSnapshot.date;
+  const reported = lastSnapshot.reported || null;
+  const displayValue = reported && reported.totalValue !== null && reported.totalValue !== undefined ? reported.totalValue : totalValue;
+  const positionsSumDiffers = reported && reported.totalValue !== null && Math.abs(reported.totalValue - totalValue) / totalValue > 0.02;
+  return { positions, totalValue, totalCost, totalPL, dayChangeDollar, dayChangePct, lastDate, hasHistory: history.length > 1, reported, displayValue, positionsSumDiffers };
+}
+function computeBreakdown(rawPositions, weightMode) {
+  const mode = weightMode || 'value';
+  const positions = (rawPositions || []).filter((p) => p && typeof p.shares === 'number' && typeof p.price === 'number' && !isNaN(p.shares) && !isNaN(p.price));
+  const totalValue = positions.reduce((s, p) => s + valueOf(p), 0);
+  if (!totalValue || !positions.length) return null;
+
+  const basisOf = (p) => {
+    if (mode === 'shareCount') return p.shares;
+    if (mode === 'given') return typeof p.reportedWeightPct === 'number' && !isNaN(p.reportedWeightPct) ? p.reportedWeightPct : 0;
+    return valueOf(p);
+  };
+
+  const bySleeve = { equity: 0, fixedIncome: 0, other: 0 };
+  const sleeveBasisTotal = { equity: 0, fixedIncome: 0, other: 0 };
+  positions.forEach((p) => {
+    const value = valueOf(p);
+    const sleeve = bySleeve.hasOwnProperty(p.sleeve) ? p.sleeve : 'other';
+    bySleeve[sleeve] += value;
+    sleeveBasisTotal[sleeve] += basisOf(p);
+  });
+
+  const sleeveSegments = Object.keys(bySleeve)
+    .filter((k) => bySleeve[k] > 0)
+    .map((k) => ({ key: k, label: SLEEVE_LABELS[k], value: bySleeve[k], pct: (bySleeve[k] / totalValue) * 100, color: SLEEVE_COLORS[k] }))
+    .sort((a, b) => b.value - a.value);
+
+  const withSleeveWeight = positions.map((p) => {
+    const sleeve = bySleeve.hasOwnProperty(p.sleeve) ? p.sleeve : 'other';
+    const basis = basisOf(p);
+    const denom = sleeveBasisTotal[sleeve];
+    const sleeveWeightPct = denom ? (basis / denom) * 100 : null;
+    return { ...p, sleeve, sleeveWeightPct };
+  });
+
+  const bySector = {};
+  withSleeveWeight.forEach((p) => {
+    if (p.sleeve !== 'equity') return;
+    const sector = p.sector && p.sector.trim() ? p.sector.trim() : 'Unclassified equity';
+    bySector[sector] = (bySector[sector] || 0) + (p.sleeveWeightPct || 0);
+  });
+  const sectorWeights = Object.keys(bySector)
+    .map((k) => ({ label: k, pct: bySector[k] }))
+    .sort((a, b) => b.pct - a.pct);
+
+  const byValue = withSleeveWeight.map((p) => ({ ...p, value: valueOf(p), pct: (valueOf(p) / totalValue) * 100 })).sort((a, b) => b.value - a.value);
+  const top1Pct = byValue[0] ? byValue[0].pct : 0;
+  const top3Pct = byValue.slice(0, 3).reduce((s, p) => s + p.pct, 0);
+  const maxSectorPct = sectorWeights[0] ? sectorWeights[0].pct : 0;
+  const equityPct = ((bySleeve.equity || 0) / totalValue) * 100;
+
+  const fiPositions = positions.filter((p) => p.sleeve === 'fixedIncome');
+  const fiWithDuration = fiPositions.filter((p) => typeof p.durationYears === 'number' && !isNaN(p.durationYears));
+  const fiDurationValue = fiWithDuration.reduce((s, p) => s + valueOf(p), 0);
+  const weightedDuration = fiDurationValue > 0
+    ? fiWithDuration.reduce((s, p) => s + p.durationYears * valueOf(p), 0) / fiDurationValue
+    : null;
+  const fiDurationCoveragePct = bySleeve.fixedIncome > 0 ? (fiDurationValue / bySleeve.fixedIncome) * 100 : 0;
+
+  const riskLevel = (val, low, high) => (val < low ? 'low' : val < high ? 'moderate' : 'high');
+
+  return {
+    totalValue, numPositions: positions.length, sleeveSegments, sectorWeights,
+    topPositions: byValue.slice(0, 6), allPositions: withSleeveWeight, weightMode: mode,
+    risk: {
+      top1Pct, top3Pct, maxSectorPct, equityPct,
+      top1Level: riskLevel(top1Pct, 10, 20),
+      top3Level: riskLevel(top3Pct, 30, 50),
+      sectorLevel: riskLevel(maxSectorPct, 25, 45),
+      weightedDuration, fiDurationCoveragePct,
+      durationLevel: weightedDuration === null ? null : riskLevel(weightedDuration, 1, 3)
+    }
+  };
+}
+function reportedSleeveSegments(reported) {
+  if (!reported) return null;
+  const segs = [];
+  if (reported.equityWeightPct !== null && reported.equityWeightPct !== undefined) {
+    segs.push({ key: 'equity', label: SLEEVE_LABELS.equity, pct: reported.equityWeightPct, color: SLEEVE_COLORS.equity });
+  }
+  if (reported.fixedIncomeWeightPct !== null && reported.fixedIncomeWeightPct !== undefined) {
+    segs.push({ key: 'fixedIncome', label: SLEEVE_LABELS.fixedIncome, pct: reported.fixedIncomeWeightPct, color: SLEEVE_COLORS.fixedIncome });
+  }
+  if (!segs.length) return null;
+  return segs.sort((a, b) => b.pct - a.pct);
+}
+function withSectorColors(sectorWeights) {
+  return sectorWeights.map((s, i) => ({ ...s, color: SECTOR_PALETTE[i % SECTOR_PALETTE.length] }));
+}
+
+/* ===================== Monte Carlo simulation engine ===================== */
+function cholesky(matrix) {
+  const n = matrix.length;
+  const L = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j <= i; j++) {
+      let sum = 0;
+      for (let k = 0; k < j; k++) sum += L[i][k] * L[j][k];
+      if (i === j) {
+        L[i][j] = Math.sqrt(Math.max(matrix[i][i] - sum, 0));
+      } else {
+        L[i][j] = L[j][j] !== 0 ? (matrix[i][j] - sum) / L[j][j] : 0;
+      }
+    }
+  }
+  return L;
+}
+function randNormal() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+function assumptionsFor(p) {
+  if (p.sleeve === 'fixedIncome') return { mean: 0.045, vol: 0.02 };
+  if (p.sleeve === 'equity') return p.assetType === 'etf' ? { mean: 0.09, vol: 0.16 } : { mean: 0.10, vol: 0.22 };
+  return { mean: 0.06, vol: 0.15 };
+}
+function runMonteCarlo(positions, numSims, numMonths, asOfDateStr) {
+  numSims = numSims || 2000; numMonths = numMonths || 12;
+  if (!positions || !positions.length) return null;
+  const totalValue = positions.reduce((s, p) => s + valueOf(p), 0);
+  if (!totalValue) return null;
+
+  const assets = positions.map((p) => {
+    const weight = valueOf(p) / totalValue;
+    const { mean, vol } = assumptionsFor(p);
+    return { ticker: p.ticker, sleeve: p.sleeve, sector: p.sector, assetType: p.assetType, weight, mean, vol };
+  });
+  const n = assets.length;
+
+  const corr = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => {
+    if (i === j) return 1;
+    const a = assets[i], b = assets[j];
+    if (a.sleeve !== b.sleeve) return 0.1;
+    if (a.sleeve === 'fixedIncome') return 0.7;
+    if (a.sector && b.sector && a.sector.trim().toLowerCase() === b.sector.trim().toLowerCase()) return 0.6;
+    return 0.35;
+  }));
+
+  const monthlyMean = assets.map((a) => a.mean / 12);
+  const monthlyVol = assets.map((a) => a.vol / Math.sqrt(12));
+  const monthlyCov = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => corr[i][j] * monthlyVol[i] * monthlyVol[j]));
+  const L = cholesky(monthlyCov);
+
+  const paths = [];
+  for (let s = 0; s < numSims; s++) {
+    let value = totalValue;
+    const path = [value];
+    for (let m = 0; m < numMonths; m++) {
+      const z = Array.from({ length: n }, () => randNormal());
+      const x = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) { let sum = 0; for (let k = 0; k <= i; k++) sum += L[i][k] * z[k]; x[i] = sum; }
+      let portReturn = 0;
+      for (let i = 0; i < n; i++) portReturn += assets[i].weight * (monthlyMean[i] + x[i]);
+      value *= (1 + portReturn);
+      path.push(value);
+    }
+    paths.push(path);
+  }
+
+  const startDate = asOfDateStr && !isNaN(new Date(asOfDateStr).getTime()) ? new Date(asOfDateStr) : new Date();
+  const summary = [];
+  for (let m = 0; m <= numMonths; m++) {
+    const vals = paths.map((p) => p[m]).sort((a, b) => a - b);
+    const pct = (q) => vals[Math.floor(q * (vals.length - 1))];
+    const d = new Date(startDate);
+    d.setMonth(d.getMonth() + m);
+    const p5 = pct(0.05), p25 = pct(0.25), p75 = pct(0.75), p95 = pct(0.95);
+    summary.push({
+      month: m, label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      p5, p25, median: pct(0.5), p75, p95,
+      band90: p95 - p5, band50: p75 - p25
+    });
+  }
+
+  const finalVals = paths.map((p) => p[numMonths]).sort((a, b) => a - b);
+  const varIdx = Math.max(0, Math.floor(0.05 * finalVals.length));
+  const var95Value = finalVals[varIdx];
+  const var95Loss = totalValue - var95Value;
+  const tailVals = finalVals.slice(0, varIdx + 1);
+  const cvar95Value = tailVals.reduce((s, v) => s + v, 0) / tailVals.length;
+  const cvar95Loss = totalValue - cvar95Value;
+
+  return { totalValue, assets, summary, var95Loss, var95Value, cvar95Loss, cvar95Value, numSims, numMonths };
+}
+
+
+/* ===================== Presentational components ===================== */
+function BrandMark(props) {
+  const size = props.size || 30;
+  return h('svg', { width: size, height: size, viewBox: '0 0 30 30', className: 'desk-brand-mark', 'aria-hidden': 'true' },
+    h('rect', { x: '0', y: '0', width: '30', height: '30', rx: '7', fill: '#144B87' }),
+    h('path', { d: 'M7 19 L12.5 12.5 L16.5 16.5 L23 8', stroke: '#FFFFFF', 'stroke-width': '2.3', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+    h('circle', { cx: '23', cy: '8', r: '1.8', fill: '#FFFFFF' })
+  );
+}
+
+function SleeveChip(props) {
+  const color = SLEEVE_COLORS[props.sleeve] || 'var(--text-faint)';
+  return h('span', { className: 'desk-sleeve-chip', style: { background: color + '1f', color: color } },
+    SLEEVE_LABELS[props.sleeve] || props.sleeve || 'other');
+}
+
+function RiskBadge(props) {
+  const color = props.level === 'high' ? 'var(--neg)' : props.level === 'moderate' ? 'var(--accent)' : 'var(--pos)';
+  return h('div', { className: 'desk-card', style: { borderLeft: '2px solid ' + color } },
+    h('div', { className: 'desk-card-name' }, props.label),
+    h('div', { className: 'mono', style: { fontSize: '21px', fontWeight: '600', color: color, marginTop: '9px' } }, props.valueLabel),
+    props.sub ? h('div', { className: 'desk-note', style: { marginTop: '5px' } }, props.sub) : null
+  );
+}
+
+function DonutChart(props) {
+  const segments = props.segments;
+  const size = props.size || 130;
+  const strokeWidth = 20;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  let acc = 0;
+  const circles = [h('circle', { cx: size / 2, cy: size / 2, r: radius, fill: 'none', stroke: 'var(--panel-2)', 'stroke-width': strokeWidth })];
+  segments.forEach((s) => {
+    const dash = (s.pct / 100) * circumference;
+    circles.push(h('circle', {
+      cx: size / 2, cy: size / 2, r: radius, fill: 'none', stroke: s.color, 'stroke-width': strokeWidth,
+      'stroke-dasharray': dash + ' ' + (circumference - dash), 'stroke-dashoffset': -acc, 'stroke-linecap': 'butt'
+    }));
+    acc += dash;
+  });
+  const legend = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '140px' } },
+    segments.map((s) => h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' } },
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: '7px' } },
+        h('span', { style: { width: '9px', height: '9px', borderRadius: '2px', background: s.color, display: 'inline-block' } }),
+        s.label
+      ),
+      h('span', { className: 'mono', style: { color: 'var(--text-dim)' } }, s.pct.toFixed(1) + '%')
+    ))
+  );
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' } },
+    h('svg', { width: size, height: size, viewBox: '0 0 ' + size + ' ' + size },
+      h('g', { transform: 'rotate(-90 ' + (size / 2) + ' ' + (size / 2) + ')' }, circles),
+      h('text', { x: size / 2, y: size / 2 - 4, 'text-anchor': 'middle', 'font-family': 'JetBrains Mono, monospace', 'font-size': '20', 'font-weight': '600', fill: 'var(--text)' },
+        segments[0] ? segments[0].pct.toFixed(0) + '%' : ''),
+      h('text', { x: size / 2, y: size / 2 + 14, 'text-anchor': 'middle', 'font-family': 'Inter, sans-serif', 'font-size': '9.5', fill: 'var(--text-dim)' },
+        segments[0] ? segments[0].label : '')
+    ),
+    legend
+  );
+}
+
+function WeightBars(props) {
+  const items = props.items;
+  const limit = props.limit || 8;
+  const shown = items.slice(0, limit);
+  return h('div', null, shown.map((it) =>
+    h('div', { style: { marginBottom: '9px' } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '3px' } },
+        h('span', null, it.label), h('span', { className: 'mono', style: { color: 'var(--text-dim)' } }, it.pct.toFixed(1) + '%')
+      ),
+      h('div', { style: { background: 'var(--panel-2)', borderRadius: '3px', height: '7px', overflow: 'hidden' } },
+        h('div', { style: { width: Math.min(it.pct, 100) + '%', height: '100%', background: 'var(--accent)', borderRadius: '3px' } })
+      )
+    )
+  ));
+}
+
+function AllocationBar(props) {
+  const b = computeBreakdown(props.positions);
+  const segments = reportedSleeveSegments(props.reported) || (b ? b.sleeveSegments : null);
+  if (!segments) return h('div', null);
+  return h('div', { style: { marginTop: '10px' } },
+    h('div', { style: { display: 'flex', height: '7px', borderRadius: '3px', overflow: 'hidden' } },
+      segments.map((s) => h('div', { style: { width: s.pct + '%', background: s.color }, title: s.label + ' ' + s.pct.toFixed(1) + '%' }))
+    ),
+    h('div', { style: { display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' } },
+      segments.map((s) => h('span', { style: { fontSize: '10.5px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' } },
+        h('span', { style: { width: '7px', height: '7px', borderRadius: '2px', background: s.color, display: 'inline-block' } }),
+        s.label + ' ' + s.pct.toFixed(0) + '%'
+      ))
+    )
+  );
+}
+
+
+/* ===================== CompositionPanel ===================== */
+function CompositionPanel(props) {
+  const positions = props.positions, themes = props.themes, reported = props.reported, weightMode = props.weightMode;
+  let b = null, computeError = null;
+  try { b = computeBreakdown(positions, weightMode); } catch (e) { computeError = e.message || 'Unexpected error computing the breakdown.'; }
+  if (!b) {
+    return h('div', { className: 'desk-panel' },
+      h('h3', null, 'Composition & risk'),
+      h('div', { className: 'desk-error' }, computeError ? ('Could not compute the breakdown: ' + computeError) : "Could not compute a breakdown from these positions — check that every row has a valid share count and price (no blanks, text, or zero values).")
+    );
+  }
+  const reportedSegs = reportedSleeveSegments(reported);
+  const sleeveSegments = reportedSegs || b.sleeveSegments;
+  const displayValue = reported && reported.totalValue !== null && reported.totalValue !== undefined ? reported.totalValue : b.totalValue;
+  const sectorDonutSegments = withSectorColors(b.sectorWeights).slice(0, 8);
+  const hasDuration = b.risk.weightedDuration !== null;
+  const sectorLevelColor = b.risk.sectorLevel === 'high' ? 'var(--neg)' : b.risk.sectorLevel === 'moderate' ? 'var(--accent)' : 'var(--pos)';
+  const reconciles = reported && reported.totalValue !== null && Math.abs(reported.totalValue - b.totalValue) / b.totalValue > 0.02;
+  const flaggedPositions = positions.filter((p) => flagPosition(p));
+
+  const badges = [
+    h(RiskBadge, { label: 'Total value', valueLabel: fmtMoney(displayValue), level: 'low', sub: reported && reported.totalValue !== null ? ('reported as of ' + (reported.totalValueAsOf || 'latest')) : ('sum of ' + b.numPositions + ' positions') }),
+    h(RiskBadge, { label: 'Largest single position', valueLabel: b.risk.top1Pct.toFixed(1) + '%', level: b.risk.top1Level, sub: b.topPositions[0] ? (b.topPositions[0].ticker + ' of total value') : '' }),
+    h(RiskBadge, { label: 'Top 3 concentration', valueLabel: b.risk.top3Pct.toFixed(1) + '%', level: b.risk.top3Level, sub: 'of total value in 3 names' })
+  ];
+  if (hasDuration) {
+    badges.push(h(RiskBadge, { label: 'Fixed income duration', valueLabel: b.risk.weightedDuration.toFixed(2) + ' yrs', level: b.risk.durationLevel, sub: 'weighted avg · rate sensitivity · ' + b.risk.fiDurationCoveragePct.toFixed(0) + '% of FI sleeve has duration data' }));
+  }
+
+  const panels = [
+    h('div', { className: 'desk-panel' },
+      h('h3', null, 'Snapshot'),
+      h('div', { className: 'desk-grid3', style: { marginBottom: '0' } }, badges),
+      reconciles ? h('div', { className: 'desk-note', style: { marginTop: 'var(--sp-4)' } }, 'Note: the position sheets you imported sum to ' + fmtMoney(b.totalValue) + ' — they may not reflect every trade since they were last updated. Total value above uses the reported figure instead.') : null,
+      flaggedPositions.length > 0 ? h('div', { className: 'desk-note', style: { marginTop: 'var(--sp-3)', color: 'var(--neg)' } },
+        '⚠ ' + flaggedPositions.length + ' position' + (flaggedPositions.length === 1 ? '' : 's') + ' (' + flaggedPositions.map((p) => p.ticker).join(', ') + ') ' + (flaggedPositions.length === 1 ? 'has' : 'have') + ' a computed P&L that looks unusually large relative to their size — worth checking whether the cost-basis and price/value columns are in the same currency in your source file.'
+      ) : null
+    ),
+    h('div', { className: 'desk-panel' },
+      h('h3', null, 'Allocation'),
+      h('div', { className: 'desk-grid3', style: { marginBottom: '0' } },
+        h('div', { className: 'desk-card', style: { gridColumn: 'span 1' } },
+          h('div', { className: 'desk-card-name', style: { marginBottom: 'var(--sp-3)' } }, 'Equity / fixed income split'),
+          h(DonutChart, { segments: sleeveSegments }),
+          reportedSegs ? h('div', { className: 'desk-note', style: { marginTop: 'var(--sp-2)' } }, 'As reported in "' + reported.weightsSheet + '"') : null
+        ),
+        h('div', { className: 'desk-card', style: { gridColumn: 'span 2' } },
+          h('div', { className: 'desk-card-name', style: { marginBottom: 'var(--sp-3)' } }, 'Equity sector weight ', h('span', { className: 'unit' }, '(% of equity sleeve)')),
+          h('div', { style: { display: 'flex', gap: 'var(--sp-5)', flexWrap: 'wrap', alignItems: 'flex-start' } },
+            h(DonutChart, { segments: sectorDonutSegments, size: 110 }),
+            h('div', { style: { flex: '1', minWidth: '180px' } }, h(WeightBars, { items: b.sectorWeights }))
+          ),
+          h('div', { className: 'desk-mini-row' },
+            h('span', null, 'Largest sector'),
+            h('span', { className: 'mono', style: { color: sectorLevelColor } }, b.sectorWeights[0] ? (b.sectorWeights[0].label + ' ' + b.risk.maxSectorPct.toFixed(1) + '%') : '—')
+          )
+        )
+      )
+    )
+  ];
+  if (themes) {
+    panels.push(h('div', { className: 'desk-panel' }, h('h3', null, 'Read'), h('div', { className: 'desk-commentary-text' }, cleanProse(themes))));
+  }
+  return h('div', null, panels);
+}
+
+/* ===================== RawSheetViewer ===================== */
+function RawSheetViewer(props) {
+  const portfolioId = props.portfolioId;
+  const container = h('div', { className: 'desk-panel' });
+  const state = { data: null, activeSheet: null, loading: false, error: '', open: false };
+
+  function render() {
+    const head = h('div', { className: 'desk-panel-head', style: { marginBottom: state.open ? 'var(--sp-4)' : '0' } },
+      h('h3', null, 'Original file'),
+      h('button', { className: 'desk-btn ghost', onClick: () => (state.open ? closeIt() : load()) }, state.open ? 'Hide' : 'View original spreadsheet')
+    );
+    const children = [head];
+    if (state.open) {
+      if (state.loading) children.push(h('div', { className: 'desk-note', style: { marginTop: '10px' } }, 'Loading…'));
+      else if (state.error) children.push(h('div', { className: 'desk-error', style: { marginTop: '10px' } }, state.error));
+      else if (state.data) {
+        const sheetTabs = h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' } },
+          state.data.sheets.map((s) => h('button', {
+            className: 'desk-btn ghost',
+            style: { padding: '4px 10px', fontSize: '12px', background: state.activeSheet === s.sheetName ? 'var(--panel-2)' : 'transparent' },
+            onClick: () => { state.activeSheet = s.sheetName; render(); }
+          }, s.sheetName))
+        );
+        const active = state.data.sheets.filter((s) => s.sheetName === state.activeSheet)[0];
+        const table = active ? h('div', { style: { overflow: 'auto', maxHeight: '420px', border: '1px solid var(--border)', borderRadius: '4px' } },
+          h('table', { style: { borderCollapse: 'collapse', fontSize: '11.5px', fontFamily: 'JetBrains Mono, monospace', width: '100%' } },
+            h('tbody', null, active.grid.map((row, ri) => h('tr', null, row.map((cell, ci) => h('td', {
+              style: { padding: '4px 8px', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', whiteSpace: 'nowrap', color: ri === 0 ? 'var(--accent)' : 'var(--text)' }
+            }, cell === null || cell === undefined ? '' : String(cell))))))
+          )
+        ) : null;
+        children.push(h('div', { style: { marginTop: '12px' } },
+          h('div', { className: 'desk-note', style: { marginBottom: '10px' } }, 'Exactly as uploaded for ' + state.data.date + ' — every sheet in the workbook, including ones not used for positions.'),
+          sheetTabs, table
+        ));
+      }
+    }
+    mountInto(container, h('div', null, children));
+  }
+
+  function closeIt() { state.open = false; render(); }
+  async function load() {
+    state.open = true; render();
+    if (state.data) return;
+    state.loading = true; state.error = ''; render();
+    try {
+      const raw = await safeGet('raw-' + portfolioId, false);
+      if (!raw) { state.error = 'No original file saved for this portfolio yet — it saves the next time you upload.'; return; }
+      const parsed = JSON.parse(raw);
+      state.data = parsed;
+      state.activeSheet = parsed.sheets[0] ? parsed.sheets[0].sheetName : null;
+    } catch (e) {
+      state.error = 'Could not load the saved file.';
+    } finally {
+      state.loading = false; render();
+    }
+  }
+
+  render();
+  return container;
+}
+
+
+/* ===================== Setup + Login ===================== */
+function SetupWizard(props) {
+  const onComplete = props.onComplete;
+  const container = h('div', { className: 'desk-gate' });
+  const state = {
+    password: '', confirm: '',
+    names: DEFAULT_NAMES.slice(),
+    strategies: ['', '', ''],
+    error: '', saving: false
+  };
+
+  function render() {
+    const inputs = PORTFOLIO_IDS.map((id, i) => h('div', { className: 'desk-setup-portfolio' },
+      h('input', {
+        className: 'desk-input', placeholder: 'Portfolio ' + (i + 1) + ' name', value: state.names[i],
+        onChange: (e) => { state.names[i] = e.target.value; }
+      }),
+      h('input', {
+        className: 'desk-input', placeholder: 'Strategy label (e.g. Barbell: high-vol equity + short-duration FI)', value: state.strategies[i],
+        onChange: (e) => { state.strategies[i] = e.target.value; }
+      })
+    ));
+    mountInto(container, h('div', { className: 'desk-gate-box', style: { width: '420px' } },
+      h('div', { className: 'brand-row' }, h(BrandMark, { size: 26 }), h('span', { className: 'eyebrow' }, 'Safra · First-time setup')),
+      h('h1', { className: 'display' }, 'Set up the desk'),
+      h('div', { className: 'desk-row', style: { gap: '8px' } },
+        h('input', { className: 'desk-input', style: { flex: '1' }, type: 'password', placeholder: 'Set a password', onChange: (e) => { state.password = e.target.value; } }),
+        h('input', { className: 'desk-input', style: { flex: '1' }, type: 'password', placeholder: 'Confirm password', onChange: (e) => { state.confirm = e.target.value; } })
+      ),
+      h('div', { className: 'desk-note', style: { marginBottom: '14px' } }, "This keeps casual visitors out. It's stored in your own account's private data — anyone on a different account gets no access to this data at all, even without the password."),
+      inputs,
+      state.error ? h('div', { className: 'desk-error' }, state.error) : null,
+      h('button', { className: 'desk-btn', style: { width: '100%' }, disabled: state.saving, onClick: submit }, state.saving ? 'Setting up…' : 'Create the desk')
+    ));
+  }
+
+  async function submit() {
+    state.error = '';
+    if (!state.password || state.password.length < 4) { state.error = 'Choose a password of at least 4 characters.'; render(); return; }
+    if (state.password !== state.confirm) { state.error = 'Passwords do not match.'; render(); return; }
+    state.saving = true; render();
+    const config = {
+      password: state.password,
+      portfolios: PORTFOLIO_IDS.map((id, i) => ({ id, name: state.names[i] || DEFAULT_NAMES[i], strategy: state.strategies[i] || 'Not yet labeled' }))
+    };
+    const ok = await verifiedSet('desk-config', JSON.stringify(config), false);
+    state.saving = false;
+    if (!ok) { state.error = "Could not verify the save went through — check your connection and try again before continuing, or your setup won't survive a reload."; render(); return; }
+    onComplete(config);
+  }
+
+  render();
+  return container;
+}
+
+function LoginGate(props) {
+  const config = props.config, onUnlock = props.onUnlock;
+  const container = h('div', { className: 'desk-gate' });
+  const state = { input: '', error: '', confirmingReset: false };
+
+  function render() {
+    mountInto(container, h('div', { className: 'desk-gate-box' },
+      h('div', { className: 'brand-row' }, h(BrandMark, { size: 26 }), h('span', { className: 'eyebrow' }, 'Safra · Private desk')),
+      h('h1', { className: 'display' }, 'Enter password'),
+      h('input', {
+        className: 'desk-input', type: 'password', placeholder: 'Password', autofocus: true,
+        onChange: (e) => { state.input = e.target.value; },
+        onKeydown: (e) => { if (e.key === 'Enter') submit(); }
+      }),
+      state.error ? h('div', { className: 'desk-error' }, state.error) : null,
+      h('button', { className: 'desk-btn', onClick: submit }, 'Unlock'),
+      h('div', { style: { marginTop: '14px', textAlign: 'center' } },
+        !state.confirmingReset
+          ? h('button', { onClick: () => { state.confirmingReset = true; render(); }, style: { all: 'unset', cursor: 'pointer', fontSize: '11px', color: '#5B6675' } }, 'Forgot password / reset desk data')
+          : h('span', { style: { fontSize: '11.5px' } },
+              'This deletes all saved portfolios and commentary. ',
+              h('button', { onClick: reset, style: { all: 'unset', cursor: 'pointer', color: '#E2596B', fontWeight: '600' } }, 'Confirm reset'),
+              ' · ',
+              h('button', { onClick: () => { state.confirmingReset = false; render(); }, style: { all: 'unset', cursor: 'pointer', color: '#8894A3' } }, 'Cancel')
+            )
+      )
+    ));
+  }
+
+  function submit() {
+    if (state.input === config.password) onUnlock();
+    else { state.error = 'Incorrect password.'; render(); }
+  }
+  async function reset() {
+    await safeDelete('desk-config', false);
+    for (const id of PORTFOLIO_IDS) await safeDelete('history-' + id, false);
+    await safeDelete('commentary-log', false);
+    window.location.reload();
+  }
+
+  render();
+  return container;
+}
+
+
+/* ===================== UploadPanel ===================== */
+function UploadPanel(props) {
+  const portfolioId = props.portfolioId, onSaved = props.onSaved;
+  const sourcing = PORTFOLIO_SOURCING[portfolioId] || null;
+  const container = h('div', { className: 'desk-panel' });
+  let fileInputEl = null;
+  const state = {
+    date: todayStr(), error: '', ok: '', busy: false, busyLabel: '',
+    candidates: null, reportedSummary: null, useReported: true,
+    checked: {}, expanded: {}, rawSheets: null
+  };
+
+  function render() {
+    const topRow = h('div', { className: 'desk-row' },
+      h('input', { className: 'desk-input mono', type: 'date', value: state.date, onChange: (e) => { state.date = e.target.value; render(); } }),
+      h('input', {
+        ref: (el) => { fileInputEl = el; }, type: 'file', accept: '.xlsx,.xls', onChange: handleFile, disabled: state.busy,
+        style: { color: 'var(--text-dim)', fontSize: '13px' }
+      }),
+      state.busy ? h('span', { className: 'desk-spin' }) : null,
+      state.busy ? h('span', { className: 'desk-note' }, state.busyLabel) : null
+    );
+
+    const sourcingNote = h('div', { className: 'desk-note' },
+      sourcing && sourcing.positionsSheets
+        ? ('This portfolio only reads positions from: ' + sourcing.positionsSheets.join(' / ') + '. Other sheets in the file are ignored for positions.')
+        : "Every sheet is read directly — headers don't need to match anything specific, and a sheet can hold more than one stacked table (equities, ETFs, bonds identified by ISIN, whatever it actually contains). All sheets with holdings are checked by default below — uncheck any you don't want in today's snapshot."
+    );
+
+    const children = [h('h3', null, "Upload today's positions"), topRow, sourcingNote];
+    if (state.error) children.push(h('div', { className: 'desk-error', style: { marginTop: '10px' } }, state.error));
+    if (state.ok) children.push(h('div', { className: 'desk-ok', style: { marginTop: '10px' } }, state.ok));
+
+    if (state.reportedSummary) {
+      const rs = state.reportedSummary;
+      const lines = [];
+      if (rs.totalValue !== null) lines.push(h('div', null, 'Total value: ', h('span', { className: 'mono', style: { fontWeight: '600' } }, fmtMoney(rs.totalValue)), ' — as of ', h('strong', null, rs.totalValueAsOf || 'unknown date'), ', from "' + rs.totalValueSheet + '"'));
+      if (rs.equityWeightPct !== null || rs.fixedIncomeWeightPct !== null) {
+        lines.push(h('div', null, 'Allocation: ', h('span', { className: 'mono', style: { fontWeight: '600' } }, 'Equity ' + (rs.equityWeightPct !== null ? rs.equityWeightPct.toFixed(1) : '—') + '% / Fixed income ' + (rs.fixedIncomeWeightPct !== null ? rs.fixedIncomeWeightPct.toFixed(1) : '—') + '%'), ' — from "' + rs.weightsSheet + '"'));
+      }
+      children.push(h('div', { className: 'desk-panel', style: { marginTop: '14px', background: 'var(--panel-2)' } },
+        h('h3', { style: { marginBottom: '8px' } }, 'Found a reported summary in this file'),
+        h('div', { style: { fontSize: '13px', lineHeight: '1.7' } }, lines),
+        h('label', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', cursor: 'pointer', fontSize: '13px' } },
+          h('input', { type: 'checkbox', checked: state.useReported, onChange: (e) => { state.useReported = e.target.checked; render(); } }),
+          'Use this as the reported total value / allocation for this snapshot, instead of recalculating from the position sheets below'
+        )
+      ));
+    }
+
+    if (state.candidates) {
+      const rows = state.candidates.map((c) => {
+        const rowChildren = [
+          h('label', { style: { display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' } },
+            h('input', {
+              type: 'checkbox', checked: !!state.checked[c.sheetName], style: { marginTop: '3px' },
+              onChange: (e) => { state.checked[c.sheetName] = e.target.checked; render(); }
+            }),
+            h('span', { style: { flex: '1' } },
+              h('span', { style: { fontWeight: '600', fontSize: '13.5px' } }, c.sheetName),
+              h('span', { className: 'desk-tag', style: { marginLeft: '8px' } }, c.positions.length + ' position' + (c.positions.length === 1 ? '' : 's')),
+              h('div', { className: 'desk-note', style: { marginTop: '2px' } }, c.tickers.slice(0, 8).join(', ') + (c.tickers.length > 8 ? '…' : ''))
+            ),
+            h('button', {
+              type: 'button', className: 'desk-btn ghost', style: { padding: '4px 10px', fontSize: '11.5px' },
+              onClick: (ev) => { ev.preventDefault(); state.expanded[c.sheetName] = !state.expanded[c.sheetName]; render(); }
+            }, state.expanded[c.sheetName] ? 'Hide data' : 'Check the numbers')
+          )
+        ];
+        if (state.expanded[c.sheetName]) {
+          const bodyRows = c.positions.map((p) => {
+            const flag = flagPosition(p);
+            return h('tr', null,
+              h('td', { className: 'ticker' }, p.ticker, flag ? h('span', { title: flag, style: { marginLeft: '5px', color: 'var(--neg)' } }, '⚠') : null, p.name ? h('div', { className: 'desk-note', style: { fontWeight: '400' } }, p.name) : null),
+              h('td', { style: { textAlign: 'left' } }, SLEEVE_LABELS[p.sleeve] || p.sleeve),
+              h('td', null, p.shares.toLocaleString()),
+              h('td', null, fmtMoney(p.costBasis, { decimals: 2 })),
+              h('td', null, fmtMoney(p.price, { decimals: 2 })),
+              h('td', null, fmtMoney(valueOf(p))),
+              h('td', { style: { textAlign: 'left' } }, p.sector || '—')
+            );
+          });
+          rowChildren.push(h('div', { style: { marginTop: '8px', marginLeft: '22px', overflowX: 'auto' } },
+            h('table', { className: 'desk-table', style: { fontSize: '12px' } },
+              h('thead', null, h('tr', null, h('th', null, 'Ticker'), h('th', null, 'Sleeve'), h('th', null, 'Shares'), h('th', null, 'Cost basis'), h('th', null, 'Price'), h('th', null, 'Value'), h('th', null, 'Sector'))),
+              h('tbody', null, bodyRows)
+            ),
+            h('div', { className: 'desk-note', style: { marginTop: '4px' } }, 'This is exactly what was read from "' + c.sheetName + '" — compare it against that sheet in your workbook before importing.'),
+            c.positions.some((p) => flagPosition(p)) ? h('div', { className: 'desk-note', style: { marginTop: '4px', color: 'var(--neg)' } }, '⚠ One or more rows above look like they may have a cost-basis/currency mismatch — hover the warning icon for details.') : null
+          ));
+        }
+        return h('div', { style: { padding: '8px 0', borderBottom: '1px solid var(--border)' } }, rowChildren);
+      });
+      children.push(h('div', { style: { marginTop: '14px' } },
+        rows,
+        h('button', { className: 'desk-btn', style: { marginTop: '12px' }, disabled: state.busy, onClick: confirmImport },
+          state.busy ? [h('span', { className: 'desk-spin' }), state.busyLabel] : ('Import selected sheets as ' + state.date + ' snapshot'))
+      ));
+    }
+
+    mountInto(container, h('div', null, children));
+  }
+
+  async function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    state.error = ''; state.ok = ''; state.busy = true; state.busyLabel = 'Reading the workbook…';
+    state.candidates = null; state.reportedSummary = null; state.rawSheets = null;
+    render();
+    try {
+      const result = await readWorkbook(file);
+      const positionSheets = result.positionSheets, reported = result.reportedSummary, raw = result.rawSheets;
+      const restricted = sourcing && sourcing.positionsSheets
+        ? positionSheets.filter((c) => sheetAllowed(c.sheetName, sourcing.positionsSheets))
+        : positionSheets;
+      if (sourcing && sourcing.positionsSheets && !restricted.length) {
+        throw new Error('This portfolio only reads positions from ' + sourcing.positionsSheets.join(' / ') + ', and no matching sheet with holdings was found in this file.');
+      }
+      const initialChecked = {};
+      restricted.forEach((c) => { initialChecked[c.sheetName] = true; });
+      state.checked = initialChecked;
+      state.candidates = restricted;
+      state.reportedSummary = reported;
+      state.useReported = true;
+      state.rawSheets = raw;
+    } catch (err) {
+      state.error = err.message || 'Something went wrong reading that file.';
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  async function confirmImport() {
+    state.busy = true; state.busyLabel = 'Saving…'; state.error = ''; state.ok = '';
+    render();
+    try {
+      const selectedSheets = state.candidates.filter((c) => state.checked[c.sheetName]);
+      if (!selectedSheets.length) throw new Error('Select at least one sheet to import.');
+
+      const seenTickers = new Set();
+      const dupTickers = new Set();
+      let positions = [];
+      selectedSheets.forEach((c) => {
+        c.positions.forEach((p) => {
+          if (seenTickers.has(p.ticker)) { dupTickers.add(p.ticker); return; }
+          seenTickers.add(p.ticker);
+          positions.push(p);
+        });
+      });
+
+      const histRaw = await safeGet('history-' + portfolioId, false);
+      const history = histRaw ? JSON.parse(histRaw) : [];
+      const existingIdx = history.findIndex((hh) => hh.date === state.date);
+      const reported = (state.useReported && state.reportedSummary) ? state.reportedSummary : null;
+      const weightMode = sourcing ? sourcing.weightMode : 'value';
+
+      let themes = null;
+      try {
+        state.busyLabel = 'Reading the composition…'; render();
+        const b = computeBreakdown(positions, weightMode);
+        if (b) {
+          const sleeveText = (reported && (reported.equityWeightPct !== null || reported.fixedIncomeWeightPct !== null))
+            ? ('Equity ' + (reported.equityWeightPct !== null ? reported.equityWeightPct.toFixed(1) : '—') + '%, Fixed income ' + (reported.fixedIncomeWeightPct !== null ? reported.fixedIncomeWeightPct.toFixed(1) : '—') + '% (reported directly in the file)')
+            : b.sleeveSegments.map((s) => s.label + ' ' + s.pct.toFixed(1) + '%').join(', ');
+          const sectorText = b.sectorWeights.slice(0, 6).map((s) => s.label + ' ' + s.pct.toFixed(1) + '%').join(', ');
+          const topText = b.topPositions.slice(0, 5).map((p) => p.ticker + ' ' + p.pct.toFixed(1) + '%').join(', ');
+          const totalValueText = reported && reported.totalValue ? (fmtMoney(reported.totalValue) + ' (reported as of ' + (reported.totalValueAsOf || 'latest') + ')') : fmtMoney(b.totalValue);
+
+          let extraContext = '';
+          if (sourcing && sourcing.readSheets && state.rawSheets) {
+            const allowedRaw = state.rawSheets.filter((s) => sheetAllowed(s.sheetName, sourcing.readSheets));
+            if (allowedRaw.length) {
+              extraContext = '\n\nAdditional source material (use only what is factually relevant, do not invent beyond it):\n' +
+                allowedRaw.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid.slice(0, 60))}\n</sheet>`).join('\n\n');
+            }
+          }
+
+          const themesPrompt = `A portfolio has this exact computed breakdown — do not restate these numbers, they are already shown separately:\nAllocation: ${sleeveText}.\nSector/theme weights: ${sectorText}.\nLargest positions: ${topText}.\nTotal value: ${totalValueText} across ${b.numPositions} positions.${extraContext}\n\nIn 2-3 sentences, say what this composition suggests strategically — the kind of risk being taken, what the sector/theme tilt implies, and whether the concentration level is notable. If the additional source material above shows anything notable (recent trades, performance trend, benchmark comparison), you may reference it briefly. Be specific, no generic filler, no repeating the percentages themselves. Write it as flowing prose in complete sentences — no bullet points, no dashes, no line breaks, no lists. Respond with only those sentences, nothing else.`;
+          themes = await callClaude(themesPrompt, 400);
+        }
+      } catch (e) {
+        themes = null;
+      }
+
+      const snapshot = { date: state.date, positions, themes, reported };
+      let newHistory;
+      if (existingIdx !== -1) {
+        newHistory = history.slice();
+        newHistory[existingIdx] = snapshot;
+      } else {
+        newHistory = [...history, snapshot].sort((a, b) => a.date.localeCompare(b.date));
+      }
+      const saved = await verifiedSet('history-' + portfolioId, JSON.stringify(newHistory), false);
+      if (!saved) throw new Error("Saved locally but couldn't verify the write to storage — try again, and if this keeps happening, reload the app before uploading.");
+      if (state.rawSheets) {
+        try { await safeSet('raw-' + portfolioId, JSON.stringify({ date: state.date, sheets: state.rawSheets }), false); } catch (e) { /* non-fatal */ }
+      }
+      state.ok = 'Saved ' + positions.length + ' positions for ' + state.date + ' from ' + selectedSheets.map((c) => c.sheetName).join(', ') +
+        (existingIdx !== -1 ? ' (overwrote existing snapshot for that date)' : '') +
+        (dupTickers.size ? ('. Skipped duplicate ticker(s) found in more than one selected sheet: ' + [...dupTickers].join(', ') + ' (kept the first occurrence).') : '.');
+      onSaved(newHistory);
+      state.candidates = null; state.reportedSummary = null; state.rawSheets = null;
+      if (fileInputEl) fileInputEl.value = '';
+    } catch (err) {
+      state.error = err.message || 'Could not import the selected sheets.';
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  render();
+  return container;
+}
+
+
+/* ===================== Pages ===================== */
+function PositionsTable(props) {
+  const positions = props.positions;
+  const sorted = [...positions].sort((a, b) => b.value - a.value);
+  return h('table', { className: 'desk-table' },
+    h('thead', null, h('tr', null,
+      h('th', { style: { textAlign: 'left' } }, 'Ticker'), h('th', { style: { textAlign: 'left' } }, 'Name'),
+      h('th', { style: { textAlign: 'left' } }, 'Sleeve'), h('th', { style: { textAlign: 'left' } }, 'Sector'),
+      h('th', null, 'Shares'), h('th', null, 'Price'), h('th', null, 'Cost Basis'), h('th', null, 'Value'),
+      h('th', null, 'Day $'), h('th', null, 'Day %'), h('th', null, 'Unrealized P&L'), h('th', { style: { textAlign: 'left' } }, 'Source')
+    )),
+    h('tbody', null, sorted.map((p) => {
+      const flag = flagPosition(p);
+      return h('tr', null,
+        h('td', { className: 'ticker', style: { textAlign: 'left' } }, p.ticker,
+          flag ? h('span', { title: flag, style: { marginLeft: '5px', color: 'var(--neg)' } }, '⚠') : null,
+          p.isNew ? h('span', { className: 'desk-tag', style: { marginLeft: '6px' } }, 'new') : null
+        ),
+        h('td', { className: 'muted', style: { textAlign: 'left' } }, p.name || '—'),
+        h('td', { style: { textAlign: 'left' } }, h(SleeveChip, { sleeve: p.sleeve })),
+        h('td', { className: 'muted', style: { textAlign: 'left' } }, p.sector || '—'),
+        h('td', null, p.shares.toLocaleString()),
+        h('td', null, fmtMoney(p.price, { decimals: 2 })),
+        h('td', null, fmtMoney(p.costBasis, { decimals: 2 })),
+        h('td', null, fmtMoney(p.value)),
+        h('td', { style: { color: p.dayChangeDollar > 0 ? 'var(--pos)' : p.dayChangeDollar < 0 ? 'var(--neg)' : 'var(--text-dim)' } }, p.dayChangeDollar === null ? '—' : fmtMoney(p.dayChangeDollar)),
+        h('td', { style: { color: p.dayChangePct > 0 ? 'var(--pos)' : p.dayChangePct < 0 ? 'var(--neg)' : 'var(--text-dim)' } }, p.dayChangePct === null ? '—' : fmtPct(p.dayChangePct)),
+        h('td', { style: { color: p.unrealizedPL >= 0 ? 'var(--pos)' : 'var(--neg)' } }, fmtMoney(p.unrealizedPL)),
+        h('td', { style: { textAlign: 'left', color: 'var(--text-faint)', fontFamily: 'Inter, sans-serif', fontSize: '11px' } }, p.sourceSheet || '—')
+      );
+    }))
+  );
+}
+
+function DeskTotals(props) {
+  const configs = props.configs, histories = props.histories;
+  const withData = PORTFOLIO_IDS.map((id) => portfolioMetrics(histories[id] || [])).filter(Boolean);
+  if (!withData.length) return h('div', null);
+  const totalValue = withData.reduce((s, m) => s + m.displayValue, 0);
+  const totalDay = withData.reduce((s, m) => s + (m.dayChangeDollar || 0), 0);
+  const totalPL = withData.reduce((s, m) => s + m.totalPL, 0);
+  return h('div', { className: 'desk-panel' },
+    h('h3', null, 'Desk total'),
+    h('div', { className: 'desk-row', style: { gap: '28px' } },
+      h('div', null, h('div', { className: 'desk-note' }, 'Value'), h('div', { className: 'mono', style: { fontSize: '18px', fontWeight: '600' } }, fmtMoney(totalValue))),
+      h('div', null, h('div', { className: 'desk-note' }, 'Day change'), h('div', { className: 'mono', style: { fontSize: '18px', fontWeight: '600', color: totalDay > 0 ? 'var(--pos)' : totalDay < 0 ? 'var(--neg)' : 'var(--text-dim)' } }, fmtMoney(totalDay))),
+      h('div', null, h('div', { className: 'desk-note' }, 'Unrealized P&L'), h('div', { className: 'mono', style: { fontSize: '18px', fontWeight: '600', color: totalPL >= 0 ? 'var(--pos)' : 'var(--neg)' } }, fmtMoney(totalPL)))
+    )
+  );
+}
+
+function OverviewPage(props) {
+  const configs = props.configs, histories = props.histories, goTo = props.goTo;
+  const cards = PORTFOLIO_IDS.map((id) => {
+    const cfg = configs[id];
+    const m = portfolioMetrics(histories[id] || []);
+    const inner = [
+      h('div', { className: 'desk-card-top' },
+        h('div', null, h('div', { className: 'desk-card-name' }, cfg.name), h('div', { className: 'desk-card-strategy' }, cfg.strategy)),
+        m ? h('span', { className: 'desk-chip ' + chipClass(m.dayChangeDollar) }, m.dayChangePct === null ? 'day 1' : fmtPct(m.dayChangePct)) : null
+      )
+    ];
+    if (m) {
+      inner.push(h('div', { className: 'desk-card-value mono' }, fmtMoney(m.displayValue)));
+      if (m.reported && m.reported.totalValue !== null) inner.push(h('div', { className: 'desk-note', style: { marginTop: '-2px' } }, 'reported as of ' + (m.reported.totalValueAsOf || m.lastDate)));
+      inner.push(h('div', { className: 'desk-mini-row' }, h('span', null, 'Day change'), h('span', { className: 'mono', style: { color: m.dayChangeDollar > 0 ? 'var(--pos)' : m.dayChangeDollar < 0 ? 'var(--neg)' : 'var(--text-dim)' } }, m.dayChangeDollar === null ? '—' : fmtMoney(m.dayChangeDollar))));
+      inner.push(h('div', { className: 'desk-mini-row' }, h('span', null, 'Unrealized P&L'), h('span', { className: 'mono', style: { color: m.totalPL >= 0 ? 'var(--pos)' : 'var(--neg)' } }, fmtMoney(m.totalPL))));
+      inner.push(h(AllocationBar, { positions: m.positions, reported: m.reported }));
+    } else {
+      inner.push(h('div', { className: 'desk-note', style: { marginTop: '12px' } }, 'No positions uploaded yet.'));
+    }
+    return h('div', { className: 'desk-card clickable', onClick: () => goTo(id) }, inner);
+  });
+  return h('div', null,
+    h('h2', { className: 'display' }, 'Overview'),
+    h('div', { className: 'desk-sub' }, 'All three books, one screen.'),
+    h('div', { className: 'desk-grid3' }, cards),
+    h(DeskTotals, { configs: configs, histories: histories })
+  );
+}
+
+function DeskViewPage(props) {
+  const configs = props.configs, histories = props.histories;
+  const container = h('div', null);
+  const state = { filterSector: 'all' };
+
+  function render() {
+    let all = [];
+    PORTFOLIO_IDS.forEach((id) => {
+      const hist = histories[id] || [];
+      if (!hist.length) return;
+      enrichPositions(hist).forEach((p) => all.push({ ...p, portfolio: configs[id].name }));
+    });
+    const sectors = Array.from(new Set(all.map((p) => p.sector).filter(Boolean)));
+    if (state.filterSector !== 'all') all = all.filter((p) => p.sector === state.filterSector);
+    all.sort((a, b) => b.value - a.value);
+
+    const children = [h('h2', { className: 'display' }, 'Desk view'), h('div', { className: 'desk-sub' }, 'Every position, across all three books.')];
+    if (sectors.length > 0) {
+      children.push(h('div', { className: 'desk-row', style: { marginBottom: '14px' } },
+        h('select', { className: 'desk-input', value: state.filterSector, onChange: (e) => { state.filterSector = e.target.value; render(); } },
+          h('option', { value: 'all' }, 'All sectors / asset classes'),
+          sectors.map((s) => h('option', { value: s }, s))
+        )
+      ));
+    }
+    if (all.length === 0) {
+      children.push(h('div', { className: 'desk-note' }, 'No positions uploaded yet across any portfolio.'));
+    } else {
+      children.push(h('table', { className: 'desk-table' },
+        h('thead', null, h('tr', null, h('th', null, 'Ticker'), h('th', null, 'Book'), h('th', null, 'Sector'), h('th', null, 'Shares'), h('th', null, 'Value'), h('th', null, 'Day $'), h('th', null, 'Day %'), h('th', null, 'P&L'))),
+        h('tbody', null, all.map((p) => h('tr', null,
+          h('td', { className: 'ticker' }, p.ticker),
+          h('td', { style: { textAlign: 'left', fontFamily: 'Inter, sans-serif', fontSize: '12px', color: 'var(--text-dim)' } }, p.portfolio),
+          h('td', { style: { textAlign: 'left', fontFamily: 'Inter, sans-serif', fontSize: '12px', color: 'var(--text-dim)' } }, p.sector || '—'),
+          h('td', null, p.shares.toLocaleString()),
+          h('td', null, fmtMoney(p.value)),
+          h('td', { style: { color: p.dayChangeDollar > 0 ? 'var(--pos)' : p.dayChangeDollar < 0 ? 'var(--neg)' : 'var(--text-dim)' } }, p.dayChangeDollar === null ? '—' : fmtMoney(p.dayChangeDollar)),
+          h('td', { style: { color: p.dayChangePct > 0 ? 'var(--pos)' : p.dayChangePct < 0 ? 'var(--neg)' : 'var(--text-dim)' } }, p.dayChangePct === null ? '—' : fmtPct(p.dayChangePct)),
+          h('td', { style: { color: p.unrealizedPL >= 0 ? 'var(--pos)' : 'var(--neg)' } }, fmtMoney(p.unrealizedPL))
+        )))
+      ));
+    }
+    mountInto(container, h('div', null, children));
+  }
+  render();
+  return container;
+}
+
+function CommonPositionsPage(props) {
+  const configs = props.configs, histories = props.histories;
+  const byTicker = {};
+  PORTFOLIO_IDS.forEach((id) => {
+    const hist = histories[id] || [];
+    if (!hist.length) return;
+    enrichPositions(hist).forEach((p) => {
+      if (!byTicker[p.ticker]) byTicker[p.ticker] = [];
+      byTicker[p.ticker].push({ portfolioId: id, portfolioName: configs[id].name, ...p });
+    });
+  });
+  const common = Object.keys(byTicker)
+    .filter((t) => new Set(byTicker[t].map((e) => e.portfolioId)).size > 1)
+    .map((t) => ({ ticker: t, entries: byTicker[t] }))
+    .sort((a, b) => b.entries.reduce((s, e) => s + e.value, 0) - a.entries.reduce((s, e) => s + e.value, 0));
+
+  const body = common.length === 0
+    ? h('div', { className: 'desk-note' }, 'No overlapping positions across portfolios yet.')
+    : common.map((c) => h('div', { className: 'desk-panel' },
+        h('h3', null, c.ticker, c.entries[0].name ? h('span', { style: { color: 'var(--text-dim)', fontWeight: '400' } }, ' · ' + c.entries[0].name) : null),
+        h('table', { className: 'desk-table' },
+          h('thead', null, h('tr', null, h('th', { style: { textAlign: 'left' } }, 'Portfolio'), h('th', { style: { textAlign: 'left' } }, 'Sleeve'), h('th', null, 'Shares'), h('th', null, 'Price'), h('th', null, 'Value'))),
+          h('tbody', null, c.entries.map((e) => h('tr', null,
+            h('td', { style: { textAlign: 'left' } }, e.portfolioName),
+            h('td', { style: { textAlign: 'left' } }, h(SleeveChip, { sleeve: e.sleeve })),
+            h('td', null, e.shares.toLocaleString()),
+            h('td', null, fmtMoney(e.price, { decimals: 2 })),
+            h('td', null, fmtMoney(e.value))
+          )))
+        ),
+        h('div', { className: 'desk-mini-row', style: { marginTop: '8px' } }, h('span', null, 'Combined value across portfolios'), h('span', { className: 'mono' }, fmtMoney(c.entries.reduce((s, e) => s + e.value, 0))))
+      ));
+
+  return h('div', null, h('h2', { className: 'display' }, 'Common positions'), h('div', { className: 'desk-sub' }, "Tickers held in more than one portfolio, each read from that portfolio's own source page."), body);
+}
+
+
+function PortfolioRiskCard(props) {
+  const id = props.id, cfg = props.cfg, positions = props.positions;
+  const container = h('div', { className: 'desk-panel' });
+  const state = { risk: null, busy: false, error: '' };
+
+  function render() {
+    mountInto(container, h('div', null,
+      h('div', { className: 'desk-panel-head', style: { marginBottom: (!positions.length && !state.error && !state.risk) ? '0' : 'var(--sp-4)' } },
+        h('h3', null, cfg.name),
+        h('button', { className: 'desk-btn ghost', onClick: generate, disabled: state.busy || !positions.length },
+          state.busy ? [h('span', { className: 'desk-spin' }), 'Analyzing…'] : (state.risk ? 'Regenerate' : 'Generate risk analysis'))
+      ),
+      !positions.length ? h('div', { className: 'desk-note', style: { marginTop: '0' } }, 'No positions uploaded yet.') : null,
+      state.error ? h('div', { className: 'desk-error', style: { marginTop: '0' } }, state.error) : null,
+      state.risk ? h('div', { className: 'desk-commentary-text' }, state.risk) : null
+    ));
+  }
+
+  async function generate() {
+    state.busy = true; state.error = ''; render();
+    try {
+      const weightMode = PORTFOLIO_SOURCING[id] ? PORTFOLIO_SOURCING[id].weightMode : 'value';
+      const b = computeBreakdown(positions, weightMode);
+      if (!b) throw new Error('Not enough position data to analyze.');
+      const sleeveText = b.sleeveSegments.map((s) => s.label + ' ' + s.pct.toFixed(1) + '%').join(', ');
+      const sectorText = b.sectorWeights.slice(0, 8).map((s) => s.label + ' ' + s.pct.toFixed(1) + '%').join(', ');
+      const topText = b.topPositions.slice(0, 6).map((p) => p.ticker + (p.name ? ' (' + p.name + ')' : '') + ' ' + p.pct.toFixed(1) + '%').join(', ');
+      const durationText = b.risk.weightedDuration !== null ? (b.risk.weightedDuration.toFixed(2) + ' years weighted average duration on the fixed income sleeve') : 'no duration data available for the fixed income sleeve';
+      const prompt = `Describe the possible risks this investment portfolio faces, based only on the following data — do not invent anything beyond it:\nStrategy: ${cfg.strategy}.\nAllocation: ${sleeveText}.\nSector weights (equity sleeve): ${sectorText}.\nLargest positions: ${topText}.\nLargest single position: ${b.risk.top1Pct.toFixed(1)}% of the portfolio. Top 3 positions: ${b.risk.top3Pct.toFixed(1)}%. Largest sector: ${b.sectorWeights[0] ? b.sectorWeights[0].label + ' at ' + b.risk.maxSectorPct.toFixed(1) + '%' : 'n/a'}.\n${durationText}.\n\nIn 4-6 sentences, describe the specific risks this composition entails — concentration risk, sector/thematic tilt, interest-rate sensitivity, correlation between holdings, or anything else relevant given the actual holdings above. This is a factual description of risk exposure, not advice on what to do about it. Reference actual tickers or sectors where relevant. Write as flowing prose — no bullet points, no lists, no headers, no line breaks. Respond with only those sentences.`;
+      const text = await callClaude(prompt, 550);
+      state.risk = cleanProse(text);
+    } catch (e) {
+      state.error = e.message || 'Could not generate the risk analysis.';
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  render();
+  return container;
+}
+
+function RisksPage(props) {
+  const configs = props.configs, histories = props.histories;
+  const cards = PORTFOLIO_IDS.map((id) => {
+    const hist = histories[id] || [];
+    const positions = hist.length ? hist[hist.length - 1].positions : [];
+    return h(PortfolioRiskCard, { id: id, cfg: configs[id], positions: positions });
+  });
+  return h('div', null,
+    h('h2', { className: 'display' }, 'Risks'),
+    h('div', { className: 'desk-sub' }, "AI-described risk exposure per portfolio, grounded only in each portfolio's own holdings from its designated source page."),
+    cards
+  );
+}
+
+
+/* ===================== AnnualGraphPage (Monte Carlo, Chart.js) ===================== */
+function buildFanChartConfig(sim) {
+  const labels = sim.summary.map((p) => p.label);
+  const quarterTicks = new Set([0, 3, 6, 9, 12]);
+  return {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: '5th pct', data: sim.summary.map((p) => p.p5), borderColor: 'transparent', pointRadius: 0, fill: false, order: 5 },
+        { label: '95th pct', data: sim.summary.map((p) => p.p95), borderColor: 'transparent', backgroundColor: 'rgba(20,75,135,0.10)', pointRadius: 0, fill: '-1', order: 4 },
+        { label: '25th pct', data: sim.summary.map((p) => p.p25), borderColor: 'transparent', pointRadius: 0, fill: false, order: 3 },
+        { label: '75th pct', data: sim.summary.map((p) => p.p75), borderColor: 'transparent', backgroundColor: 'rgba(20,75,135,0.20)', pointRadius: 0, fill: '-1', order: 2 },
+        { label: 'Median', data: sim.summary.map((p) => p.median), borderColor: '#144B87', borderWidth: 2.2, pointRadius: 0, fill: false, order: 1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: (item) => item.dataset.label === 'Median' || item.dataset.label === '5th pct' || item.dataset.label === '95th pct' || item.dataset.label === '25th pct' || item.dataset.label === '75th pct',
+          callbacks: { label: (ctx) => ctx.dataset.label + ': ' + fmtMoney(ctx.parsed.y) }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#55647D', font: { size: 11 }, callback: function (val, idx) { return quarterTicks.has(idx) ? labels[idx] : ''; } }
+        },
+        y: {
+          grid: { color: '#D9E1EA' },
+          ticks: { color: '#55647D', font: { size: 11 }, callback: (v) => '$' + Math.round(v / 1000) + 'k' }
+        }
+      }
+    }
+  };
+}
+
+function DescriptionWidget(props) {
+  const generatePrompt = props.generatePrompt;
+  const container = h('div', { className: 'desk-panel' });
+  const state = { desc: null, busy: false, error: '' };
+
+  function render() {
+    mountInto(container, h('div', null,
+      h('div', { className: 'desk-panel-head' },
+        h('h3', null, 'Description'),
+        h('button', { className: 'desk-btn ghost', onClick: generate, disabled: state.busy },
+          state.busy ? [h('span', { className: 'desk-spin' }), 'Writing…'] : (state.desc ? 'Regenerate' : 'Generate description'))
+      ),
+      state.error ? h('div', { className: 'desk-error' }, state.error) : null,
+      state.desc
+        ? h('div', { className: 'desk-commentary-text' }, state.desc)
+        : h('div', { className: 'desk-note' }, "This simulation uses stated long-run capital-market assumptions by asset class (not this portfolio's own fitted history, which isn't available from a single snapshot) — it's a modeled range of outcomes, not a prediction. Click to generate a plain-language description."),
+      h('div', { className: 'desk-note', style: { marginTop: 'var(--sp-3)' } }, 'Assumptions: equity ETFs ~9%/16% (mean/volatility annualized), individual equities ~10%/22%, fixed income ~4.5%/2%. Correlation: 0.6 within the same sector, 0.35 across equity sectors, 0.7 among fixed income holdings, 0.1 between equity and fixed income.')
+    ));
+  }
+
+  async function generate() {
+    state.busy = true; state.error = ''; render();
+    try {
+      const text = await callClaude(generatePrompt(), 450);
+      state.desc = cleanProse(text);
+    } catch (e) {
+      state.error = e.message || 'Could not generate the description.';
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  render();
+  return container;
+}
+
+function AnnualGraphPage(props) {
+  const id = props.id, cfg = props.cfg, history = props.history;
+  const positions = history.length ? history[history.length - 1].positions : [];
+  const asOfDate = history.length ? history[history.length - 1].date : null;
+  const sim = runMonteCarlo(positions, 2000, 12, asOfDate);
+
+  if (!sim) {
+    return h('div', null,
+      h('h2', { className: 'display' }, cfg.name + ' — Annual Graph Prediction'),
+      h('div', { className: 'desk-note' }, 'Not enough position data yet to run a simulation — upload a snapshot with valid share counts and prices for this portfolio first.')
+    );
+  }
+
+  const final = sim.summary[sim.numMonths];
+  const finalMedianPct = (final.median - sim.totalValue) / sim.totalValue;
+
+  const chartPanel = h('div', { className: 'desk-panel' },
+    h('div', { style: { display: 'inline-block', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '11px', fontWeight: '600', padding: '3px 9px', borderRadius: '4px', marginBottom: 'var(--sp-3)', letterSpacing: '0.02em' } }, 'MONTE CARLO SIMULATION'),
+    h('h3', null, 'Projected value range over the next year'),
+    h('div', { style: { width: '100%', height: '300px' } }, h('canvas', { ref: (el) => {
+      setTimeout(() => { new Chart(el.getContext('2d'), buildFanChartConfig(sim)); }, 0);
+    } })),
+    h('div', { className: 'desk-row', style: { marginTop: 'var(--sp-3)', gap: 'var(--sp-5)', fontSize: '11.5px', color: 'var(--text-dim)' } },
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, h('span', { style: { width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(20,75,135,0.20)', display: 'inline-block' } }), '50% of outcomes'),
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, h('span', { style: { width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(20,75,135,0.10)', display: 'inline-block' } }), '90% of outcomes'),
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, h('span', { style: { width: '10px', height: '2px', background: '#144B87', display: 'inline-block' } }), 'Median path')
+    )
+  );
+
+  const badges = h('div', { className: 'desk-grid3', style: { marginBottom: 'var(--sp-5)' } },
+    h(RiskBadge, { label: 'Median outcome (12mo)', valueLabel: fmtMoney(final.median), level: 'low', sub: fmtPct(finalMedianPct) + ' vs. today' }),
+    h(RiskBadge, { label: '95% Value at Risk', valueLabel: fmtMoney(sim.var95Loss), level: 'moderate', sub: 'potential loss — 5% chance of doing worse' }),
+    h(RiskBadge, { label: '95% CVaR (expected shortfall)', valueLabel: fmtMoney(sim.cvar95Loss), level: 'high', sub: 'average loss in that worst 5% of outcomes' })
+  );
+
+  const descWidget = h(DescriptionWidget, {
+    generatePrompt: () => {
+      const finalMedianReturn = (sim.summary[sim.numMonths].median - sim.totalValue) / sim.totalValue;
+      return `A Monte Carlo simulation (${sim.numSims} simulated paths, ${sim.numMonths} months, correlated monthly returns per holding via Cholesky decomposition) was run on a portfolio currently worth ${fmtMoney(sim.totalValue)}. Results at the 12-month horizon: median outcome ${fmtMoney(sim.summary[sim.numMonths].median)} (${(finalMedianReturn * 100).toFixed(1)}%), 90% confidence range ${fmtMoney(sim.summary[sim.numMonths].p5)} to ${fmtMoney(sim.summary[sim.numMonths].p95)}, 95% Value-at-Risk (potential loss) of ${fmtMoney(sim.var95Loss)}, 95% Conditional VaR / expected shortfall in the worst 5% of outcomes of ${fmtMoney(sim.cvar95Loss)}. The simulation uses stated long-run capital-market assumptions by asset class (not this portfolio's own fitted history, since that data isn't available), and a correlation structure based on sector/sleeve groupings. In 3-4 sentences, describe what the fan chart shows, what the VaR/CVaR figures mean in plain terms, and note clearly that this reflects modeling assumptions, not a forecast of what will actually happen. Do not invent any figures beyond what's given here. Write as flowing prose — no bullet points, no lists, no headers. Respond with only those sentences.`;
+    }
+  });
+
+  return h('div', null,
+    h('h2', { className: 'display' }, cfg.name + ' — Annual Graph Prediction'),
+    h('div', { className: 'desk-sub' }, 'Monte Carlo simulation — ' + sim.numSims.toLocaleString() + ' simulated 12-month paths, using stated asset-class return/volatility/correlation assumptions, not a forecast.'),
+    chartPanel, badges, descWidget
+  );
+}
+
+/* ===================== BenchmarkComparisonPage ===================== */
+function buildBenchmarkLineConfig(series, color, label) {
+  return {
+    type: 'line',
+    data: {
+      labels: series.map((p) => p.date),
+      datasets: [{ label: label, data: series.map((p) => p.value), borderColor: color, borderWidth: 2, pointRadius: 0, fill: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => label + ': ' + ctx.parsed.y.toLocaleString() } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#55647D', font: { size: 10 }, maxTicksLimit: 6 } },
+        y: { grid: { color: '#D9E1EA' }, ticks: { color: '#55647D', font: { size: 11 } } }
+      }
+    }
+  };
+}
+
+function ComparisonBlock(props) {
+  const title = props.title, data = props.data, sleeveLabel = props.sleeveLabel;
+  if (!data || (data.benchmarkReturnPct === null && data.portfolioReturnPct === null)) {
+    return h('div', { className: 'desk-panel' }, h('h3', null, title), h('div', { className: 'desk-note' }, 'No ' + sleeveLabel.toLowerCase() + ' benchmark comparison data found for this portfolio.'));
+  }
+  const diff = (data.portfolioReturnPct !== null && data.benchmarkReturnPct !== null) ? (data.portfolioReturnPct - data.benchmarkReturnPct) : null;
+  const badges = [
+    h(RiskBadge, { label: sleeveLabel + ' return', valueLabel: data.portfolioReturnPct !== null ? (data.portfolioReturnPct >= 0 ? '+' : '') + data.portfolioReturnPct.toFixed(2) + '%' : '—', level: 'low' }),
+    h(RiskBadge, { label: (data.benchmarkName || 'Benchmark') + ' return', valueLabel: data.benchmarkReturnPct !== null ? (data.benchmarkReturnPct >= 0 ? '+' : '') + data.benchmarkReturnPct.toFixed(2) + '%' : '—', level: 'low' }),
+    h(RiskBadge, {
+      label: diff !== null ? (diff >= 0 ? 'Outperformance' : 'Underperformance') : 'Difference',
+      valueLabel: diff !== null ? (diff >= 0 ? '+' : '') + diff.toFixed(2) + '%' : '—',
+      level: diff === null ? 'low' : (diff >= 0 ? 'low' : 'high')
+    })
+  ];
+  const children = [h('h3', null, title), h('div', { className: 'desk-grid3', style: { marginBottom: (data.benchmarkVolPct !== null || data.portfolioVolPct !== null) ? 'var(--sp-4)' : '0' } }, badges)];
+  if (data.benchmarkVolPct !== null || data.portfolioVolPct !== null || data.benchmarkSharpe !== null || data.portfolioSharpe !== null) {
+    children.push(h('div', { className: 'desk-row', style: { gap: 'var(--sp-6)', fontSize: '12px', color: 'var(--text-dim)' } },
+      h('div', null, sleeveLabel + ' vol: ', h('span', { className: 'mono' }, data.portfolioVolPct !== null ? data.portfolioVolPct.toFixed(1) + '%' : '—'), ' · Sharpe: ', h('span', { className: 'mono' }, data.portfolioSharpe !== null ? data.portfolioSharpe.toFixed(2) : '—')),
+      h('div', null, (data.benchmarkName || 'Benchmark') + ' vol: ', h('span', { className: 'mono' }, data.benchmarkVolPct !== null ? data.benchmarkVolPct.toFixed(1) + '%' : '—'), ' · Sharpe: ', h('span', { className: 'mono' }, data.benchmarkSharpe !== null ? data.benchmarkSharpe.toFixed(2) : '—'))
+    ));
+  }
+  if (data.benchmarkSeries && data.benchmarkSeries.length > 1) {
+    children.push(h('div', { style: { width: '100%', height: '180px', marginTop: 'var(--sp-4)' } }, h('canvas', { ref: (el) => {
+      setTimeout(() => { new Chart(el.getContext('2d'), buildBenchmarkLineConfig(data.benchmarkSeries, '#144B87', data.benchmarkName || 'Benchmark')); }, 0);
+    } })));
+  }
+  return h('div', { className: 'desk-panel' }, children);
+}
+
+function BenchmarkComparisonPage(props) {
+  const id = props.id, cfg = props.cfg;
+  const sourcing = PORTFOLIO_SOURCING[id] || null;
+  const container = h('div', null);
+  const state = { rawSheets: null, loadError: '', loading: true, comparison: null, busy: false, error: '' };
+
+  async function loadRaw() {
+    state.loading = true; render();
+    try {
+      const raw = await safeGet('raw-' + id, false);
+      if (!raw) { state.loadError = 'No original file saved for this portfolio yet — it saves the next time you upload.'; return; }
+      const parsed = JSON.parse(raw);
+      const allSheets = parsed.sheets || [];
+      const restricted = (sourcing && sourcing.benchmarkSheets) ? allSheets.filter((s) => sheetAllowed(s.sheetName, sourcing.benchmarkSheets)) : allSheets;
+      if (!restricted.length) {
+        state.loadError = (sourcing && sourcing.benchmarkSheets)
+          ? ('No sheet named "' + sourcing.benchmarkSheets.join(' / ') + '" was found in the saved file.')
+          : 'No sheet data available for this portfolio yet.';
+        return;
+      }
+      state.rawSheets = restricted;
+    } catch (e) {
+      state.loadError = 'Could not load the saved file.';
+    } finally {
+      state.loading = false; render();
+    }
+  }
+
+  async function generate() {
+    state.busy = true; state.error = ''; render();
+    try {
+      const result = await extractBenchmarkComparison(state.rawSheets);
+      state.comparison = result;
+    } catch (e) {
+      state.error = e.message || 'Could not generate the comparison.';
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  function render() {
+    const children = [
+      h('h2', { className: 'display' }, cfg.name + ' compared to the Benchmark'),
+      h('div', { className: 'desk-sub' },
+        sourcing && sourcing.benchmarkSheets
+          ? ('Equity vs. S&P 500, fixed income vs. LQD — read strictly from the "' + sourcing.benchmarkSheets.join(' / ') + '" sheet.')
+          : 'Equity vs. S&P 500, fixed income vs. LQD — read from this portfolio\'s available sheet.'
+      )
+    ];
+
+    if (state.loading) {
+      children.push(h('div', { className: 'desk-note' }, 'Loading saved file…'));
+    } else if (state.loadError) {
+      children.push(h('div', { className: 'desk-error' }, state.loadError));
+    } else {
+      children.push(h('div', { className: 'desk-panel' },
+        h('button', { className: 'desk-btn', onClick: generate, disabled: state.busy },
+          state.busy ? [h('span', { className: 'desk-spin' }), 'Reading the benchmark sheet…'] : (state.comparison ? 'Regenerate comparison' : 'Generate benchmark comparison')),
+        state.error ? h('div', { className: 'desk-error', style: { marginTop: 'var(--sp-3)' } }, state.error) : null
+      ));
+      if (state.comparison) {
+        if (!state.comparison.found) {
+          children.push(h('div', { className: 'desk-panel' }, h('div', { className: 'desk-note' },
+            'No benchmark comparison data was found in ' + (state.comparison.sheetUsed ? ('"' + state.comparison.sheetUsed + '"') : 'the available sheet') + ' — waiting on further instruction for how to source this comparison for this portfolio.'
+          )));
+        } else {
+          if (state.comparison.periodStart || state.comparison.periodEnd) {
+            children.push(h('div', { className: 'desk-note' }, 'Period: ' + (state.comparison.periodStart || '—') + ' to ' + (state.comparison.periodEnd || '—')));
+          }
+          children.push(h(ComparisonBlock, { title: 'Equity vs. S&P 500', data: state.comparison.equity, sleeveLabel: 'Equity' }));
+          children.push(h(ComparisonBlock, { title: 'Fixed income vs. LQD', data: state.comparison.fixedIncome, sleeveLabel: 'Fixed income' }));
+        }
+      }
+    }
+
+    mountInto(container, h('div', null, children));
+  }
+
+  loadRaw();
+  render();
+  return container;
+}
+
+
+/* ===================== PortfolioPage ===================== */
+function PortfolioPage(props) {
+  const id = props.id, configs = props.configs, histories = props.histories;
+  const onHistoryChange = props.onHistoryChange, onStrategyChange = props.onStrategyChange, onNameChange = props.onNameChange;
+  const cfg = configs[id];
+  let currentHistory = histories[id] || [];
+
+  const outerContainer = h('div', null);
+  const nameRow = h('div', null);
+  const historyArea = h('div', null);
+  const strategyPanel = h('div', null);
+
+  const strategyState = { draft: cfg.strategy, saved: cfg.strategy, suggesting: false, aiError: '' };
+  const nameState = { draft: cfg.name, saved: cfg.name };
+
+  function renderNameRow() {
+    mountInto(nameRow, h('div', { className: 'desk-row', style: { alignItems: 'baseline', gap: '10px' } },
+      h('input', {
+        className: 'desk-input display', style: { fontSize: '22px', fontWeight: '600', padding: '4px 8px', minWidth: '220px' },
+        value: nameState.draft, onChange: (e) => { nameState.draft = e.target.value; renderNameRow(); }
+      }),
+      h('button', {
+        className: 'desk-btn ghost', style: { padding: '4px 10px', fontSize: '12px' },
+        onClick: () => { if (nameState.draft.trim()) { onNameChange(id, nameState.draft.trim()); nameState.saved = nameState.draft.trim(); renderNameRow(); } },
+        disabled: !nameState.draft.trim() || nameState.draft.trim() === nameState.saved
+      }, 'Rename')
+    ));
+  }
+
+  function renderStrategyPanel() {
+    mountInto(strategyPanel, h('div', { className: 'desk-panel' },
+      h('h3', null, 'Strategy'),
+      h('div', { className: 'desk-row' },
+        h('input', { className: 'desk-input', style: { flex: '1', minWidth: '260px' }, value: strategyState.draft, onChange: (e) => { strategyState.draft = e.target.value; renderStrategyPanel(); } }),
+        h('button', { className: 'desk-btn ghost', onClick: () => { onStrategyChange(id, strategyState.draft); strategyState.saved = strategyState.draft; renderStrategyPanel(); }, disabled: strategyState.draft === strategyState.saved }, 'Save'),
+        h('button', { className: 'desk-btn ghost', onClick: suggestStrategy, disabled: strategyState.suggesting || !currentHistory.length },
+          strategyState.suggesting ? [h('span', { className: 'desk-spin' }), 'Thinking…'] : 'AI: suggest label')
+      ),
+      strategyState.aiError ? h('div', { className: 'desk-error', style: { marginTop: '10px' } }, strategyState.aiError) : null
+    ));
+  }
+
+  async function suggestStrategy() {
+    if (!currentHistory.length) return;
+    strategyState.suggesting = true; strategyState.aiError = ''; renderStrategyPanel();
+    try {
+      const latest = currentHistory[currentHistory.length - 1];
+      const holdingsList = latest.positions.map((p) => p.ticker + (p.sector ? ' (' + p.sector + ')' : '') + ': ' + p.shares + ' sh').join(', ');
+      const prompt = `Here are the holdings of an investment portfolio: ${holdingsList}. In one short sentence (under 20 words), describe the investment strategy or style this portfolio reflects (e.g. barbell, growth, value, income, sector-concentrated). Respond with only the sentence, no preamble.`;
+      const text = await callClaude(prompt, 100);
+      strategyState.draft = text.replace(/^"|"$/g, '');
+    } catch (err) {
+      strategyState.aiError = err.message || 'Could not reach the AI.';
+    } finally {
+      strategyState.suggesting = false; renderStrategyPanel();
+    }
+  }
+
+  function renderHistoryArea() {
+    const m = portfolioMetrics(currentHistory);
+    const children = [h('div', { className: 'desk-sub' }, m ? ('Last snapshot: ' + m.lastDate) : 'No snapshots yet')];
+    if (currentHistory.length > 0) {
+      const latest = currentHistory[currentHistory.length - 1];
+      children.push(h(CompositionPanel, {
+        positions: latest.positions, themes: latest.themes || latest.analysis, reported: latest.reported,
+        weightMode: PORTFOLIO_SOURCING[id] ? PORTFOLIO_SOURCING[id].weightMode : 'value'
+      }));
+    }
+    if (m) {
+      children.push(h('div', { className: 'desk-grid3' },
+        h('div', { className: 'desk-card' },
+          h('div', { className: 'desk-card-name' }, 'Value'),
+          h('div', { className: 'desk-card-value mono' }, fmtMoney(m.displayValue)),
+          (m.reported && m.reported.totalValue !== null) ? h('div', { className: 'desk-note', style: { marginTop: '4px' } }, 'reported as of ' + (m.reported.totalValueAsOf || m.lastDate)) : null
+        ),
+        h('div', { className: 'desk-card' },
+          h('div', { className: 'desk-card-name' }, 'Day change'),
+          h('div', { className: 'desk-card-value mono', style: { color: m.dayChangeDollar > 0 ? 'var(--pos)' : m.dayChangeDollar < 0 ? 'var(--neg)' : 'var(--text-dim)' } }, m.dayChangeDollar === null ? '—' : fmtMoney(m.dayChangeDollar)),
+          h('div', { className: 'desk-mini-row' }, h('span', null, m.dayChangePct === null ? 'first snapshot' : fmtPct(m.dayChangePct)))
+        ),
+        h('div', { className: 'desk-card' },
+          h('div', { className: 'desk-card-name' }, 'Unrealized P&L'),
+          h('div', { className: 'desk-card-value mono', style: { color: m.totalPL >= 0 ? 'var(--pos)' : 'var(--neg)' } }, fmtMoney(m.totalPL))
+        )
+      ));
+    }
+    if (m) {
+      children.push(h('div', { className: 'desk-panel' }, h('h3', null, 'Positions'), h(PositionsTable, { positions: m.positions })));
+    }
+    mountInto(historyArea, h('div', null, children));
+  }
+
+  const rawSheetViewerEl = RawSheetViewer({ portfolioId: id });
+  const uploadPanelEl = UploadPanel({
+    portfolioId: id,
+    onSaved: (newHist) => {
+      currentHistory = newHist;
+      onHistoryChange(id, newHist);
+      renderHistoryArea();
+      renderStrategyPanel(); // "AI: suggest label" button's disabled state depends on history length
+    }
+  });
+
+  renderNameRow();
+  renderHistoryArea();
+  renderStrategyPanel();
+
+  mountInto(outerContainer, h('div', null, nameRow, rawSheetViewerEl, historyArea, strategyPanel, uploadPanelEl));
+  return outerContainer;
+}
+
+
+/* ===================== CommentaryPage ===================== */
+function CommentaryPage(props) {
+  const configs = props.configs, histories = props.histories;
+  const container = h('div', null);
+  const state = { log: null, busy: false, error: '' };
+  const anyData = PORTFOLIO_IDS.some((id) => (histories[id] || []).length);
+
+  function render() {
+    const logSection = state.log === null
+      ? h('div', { className: 'desk-note' }, 'Loading…')
+      : state.log.length === 0
+        ? h('div', { className: 'desk-note' }, 'No commentary generated yet.')
+        : h('div', { className: 'desk-panel' }, state.log.map((entry) => h('div', { className: 'desk-commentary-entry' },
+            h('div', { className: 'desk-commentary-date' }, entry.date),
+            h('div', { className: 'desk-commentary-text' }, entry.text)
+          )));
+    mountInto(container, h('div', null,
+      h('h2', { className: 'display' }, 'Daily commentary'),
+      h('div', { className: 'desk-sub' }, 'AI-written, grounded only in your uploaded snapshots.'),
+      h('div', { className: 'desk-panel' },
+        h('button', { className: 'desk-btn', onClick: generate, disabled: state.busy || !anyData }, state.busy ? [h('span', { className: 'desk-spin' }), 'Writing…'] : "Generate today's commentary"),
+        !anyData ? h('div', { className: 'desk-note' }, "Upload at least one portfolio's positions first.") : null,
+        state.error ? h('div', { className: 'desk-error', style: { marginTop: '10px' } }, state.error) : null
+      ),
+      logSection
+    ));
+  }
+
+  async function generate() {
+    state.busy = true; state.error = ''; render();
+    try {
+      const parts = PORTFOLIO_IDS.map((id) => {
+        const cfg = configs[id];
+        const m = portfolioMetrics(histories[id] || []);
+        if (!m) return cfg.name + ' (' + cfg.strategy + '): no positions uploaded yet.';
+        const movers = [...m.positions].sort((a, b) => Math.abs(b.dayChangeDollar || 0) - Math.abs(a.dayChangeDollar || 0)).slice(0, 3)
+          .map((p) => p.ticker + ' ' + (p.dayChangeDollar === null ? '(new)' : (p.dayChangeDollar >= 0 ? '+' : '') + fmtMoney(p.dayChangeDollar))).join(', ');
+        return cfg.name + ' — strategy: ' + cfg.strategy + '. Value: ' + fmtMoney(m.displayValue) + (m.reported && m.reported.totalValue !== null ? ' (reported as of ' + (m.reported.totalValueAsOf || m.lastDate) + ')' : '') +
+          '. Day change: ' + (m.dayChangeDollar === null ? 'first snapshot, no prior day' : fmtMoney(m.dayChangeDollar) + ' (' + fmtPct(m.dayChangePct) + ')') +
+          '. Unrealized P&L: ' + fmtMoney(m.totalPL) + '. Top movers: ' + (movers || 'none') + '.';
+      }).join('\n');
+      const prompt = `You are writing a short daily desk commentary for a private investment practice tracking three portfolios. Use only the data below — do not invent figures or news. Write 150-220 words, plain professional language, no headers or bullet points, covering: how the desk did today overall, which book(s) moved the most and why that's notable given their stated strategy, and any position worth flagging. Today's date: ${todayStr()}.\n\nData:\n${parts}`;
+      const text = await callClaude(prompt, 700);
+      const entry = { date: todayStr(), text };
+      const raw = await safeGet('commentary-log', false);
+      const existing = raw ? JSON.parse(raw) : [];
+      const filtered = existing.filter((e) => e.date !== entry.date);
+      const newLog = [entry, ...filtered];
+      await safeSet('commentary-log', JSON.stringify(newLog), false);
+      state.log = newLog;
+    } catch (err) {
+      state.error = err.message || 'Could not generate commentary.';
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  (async () => {
+    const raw = await safeGet('commentary-log', false);
+    state.log = raw ? JSON.parse(raw) : [];
+    render();
+  })();
+
+  render();
+  return container;
+}
+
+/* ===================== Root App ===================== */
+function App() {
+  const root = document.getElementById('root');
+  const appState = { phase: 'loading', config: null, histories: {}, page: 'overview' };
+  const navContainer = h('div', { className: 'desk-nav' });
+  const mainContainer = h('div', { className: 'desk-main' });
+
+  function buildNavItems(configsById) {
+    return [
+      { key: 'overview', label: 'Overview' },
+      { key: 'desk', label: 'Desk view' },
+      { key: 'common', label: 'Common Positions' },
+      { key: 'risks', label: 'Risks' },
+      ...PORTFOLIO_IDS.flatMap((id) => ([
+        { key: id, label: configsById[id].name, sub: configsById[id].strategy },
+        { key: id + '-annual', label: configsById[id].name.replace(/\s+Portfolio$/i, '') + ' Annual Graph Prediction' },
+        { key: id + '-benchmark', label: configsById[id].name + ' compared to the Benchmark' }
+      ])),
+      { key: 'commentary', label: 'Commentary' }
+    ];
+  }
+
+  function renderNav() {
+    const configsById = {};
+    appState.config.portfolios.forEach((p) => { configsById[p.id] = p; });
+    const navItems = buildNavItems(configsById);
+    mountInto(navContainer, h('div', null,
+      h('div', { className: 'desk-nav-brand' }, h(BrandMark, null), h('div', { className: 'brand-text' }, h('div', { className: 'eyebrow' }, 'Safra'), h('h1', { className: 'display' }, 'Banking'))),
+      navItems.map((item) => h('div', {
+        className: 'desk-nav-item' + (appState.page === item.key ? ' active' : ''),
+        onClick: () => { appState.page = item.key; renderNav(); renderMain(); }
+      }, item.label, item.sub ? h('span', { className: 'strategy-tag', title: item.sub }, item.sub) : null)),
+      h('div', { className: 'desk-nav-foot' }, h('button', { onClick: () => { appState.phase = 'locked'; renderApp(); } }, 'Lock desk'))
+    ));
+  }
+
+  function renderMain() {
+    const configsById = {};
+    appState.config.portfolios.forEach((p) => { configsById[p.id] = p; });
+    let pageEl;
+    if (appState.page === 'overview') pageEl = OverviewPage({ configs: configsById, histories: appState.histories, goTo: goTo });
+    else if (appState.page === 'desk') pageEl = DeskViewPage({ configs: configsById, histories: appState.histories });
+    else if (appState.page === 'common') pageEl = CommonPositionsPage({ configs: configsById, histories: appState.histories });
+    else if (appState.page === 'risks') pageEl = RisksPage({ configs: configsById, histories: appState.histories });
+    else if (PORTFOLIO_IDS.includes(appState.page)) {
+      pageEl = PortfolioPage({
+        id: appState.page, configs: configsById, histories: appState.histories,
+        onHistoryChange: updateHistory, onStrategyChange: updateStrategy, onNameChange: updateName
+      });
+    } else if (PORTFOLIO_IDS.map((id) => id + '-annual').includes(appState.page)) {
+      const pid = appState.page.replace(/-annual$/, '');
+      pageEl = AnnualGraphPage({ id: pid, cfg: configsById[pid], history: appState.histories[pid] || [] });
+    } else if (PORTFOLIO_IDS.map((id) => id + '-benchmark').includes(appState.page)) {
+      const pid = appState.page.replace(/-benchmark$/, '');
+      pageEl = BenchmarkComparisonPage({ id: pid, cfg: configsById[pid] });
+    } else if (appState.page === 'commentary') {
+      pageEl = CommentaryPage({ configs: configsById, histories: appState.histories });
+    }
+    mountInto(mainContainer, pageEl);
+  }
+
+  function renderApp() {
+    if (appState.phase === 'loading') {
+      mountInto(root, h('div', { className: 'desk-app' }, h('div', { className: 'desk-gate' }, h('div', { className: 'desk-note' }, 'Loading the desk…'))));
+      return;
+    }
+    if (appState.phase === 'setup') {
+      mountInto(root, h('div', { className: 'desk-app' }, h(SetupWizard, {
+        onComplete: (cfg) => {
+          appState.config = cfg;
+          const hh = {}; PORTFOLIO_IDS.forEach((id) => { hh[id] = []; });
+          appState.histories = hh;
+          appState.phase = 'locked';
+          renderApp();
+        }
+      })));
+      return;
+    }
+    if (appState.phase === 'locked') {
+      mountInto(root, h('div', { className: 'desk-app' }, h(LoginGate, {
+        config: appState.config,
+        onUnlock: () => { appState.phase = 'unlocked'; renderApp(); }
+      })));
+      return;
+    }
+    // 'unlocked' — build the shell ONCE around the stable nav/main containers, then
+    // fill them in. Subsequent nav-only or main-only refreshes reuse these same
+    // containers via renderNav()/renderMain() without rebuilding the whole shell.
+    renderNav();
+    renderMain();
+    mountInto(root, h('div', { className: 'desk-app' }, h('div', { className: 'desk-shell' }, navContainer, mainContainer)));
+  }
+
+  function goTo(page) { appState.page = page; renderNav(); renderMain(); }
+
+  function updateHistory(id, newHist) {
+    appState.histories = { ...appState.histories, [id]: newHist };
+    // Intentionally NOT re-rendering nav/main here — the calling widget (PortfolioPage)
+    // already refreshes its own history-dependent area directly. This avoids tearing
+    // down in-progress edits elsewhere on the same page (e.g. an unsaved strategy draft)
+    // on every upload. Other pages simply pick up the latest histories next time they're visited.
+  }
+  async function updateStrategy(id, strategy) {
+    const newPortfolios = appState.config.portfolios.map((p) => (p.id === id ? { ...p, strategy } : p));
+    appState.config = { ...appState.config, portfolios: newPortfolios };
+    renderNav(); // refresh the sidebar's strategy sub-label immediately; main content (with its live edit widgets) is left untouched
+    await verifiedSet('desk-config', JSON.stringify(appState.config), false);
+  }
+  async function updateName(id, name) {
+    const newPortfolios = appState.config.portfolios.map((p) => (p.id === id ? { ...p, name } : p));
+    appState.config = { ...appState.config, portfolios: newPortfolios };
+    renderNav(); // refresh the sidebar's name immediately; main content is left untouched
+    await verifiedSet('desk-config', JSON.stringify(appState.config), false);
+  }
+
+  (async () => {
+    const raw = await safeGet('desk-config', false);
+    if (!raw) { appState.phase = 'setup'; renderApp(); return; }
+    appState.config = JSON.parse(raw);
+    const hh = {};
+    for (const id of PORTFOLIO_IDS) {
+      const hr = await safeGet('history-' + id, false);
+      hh[id] = hr ? JSON.parse(hr) : [];
+    }
+    appState.histories = hh;
+    appState.phase = 'locked';
+    renderApp();
+  })();
+
+  renderApp();
+}
+
+App();
+
+</script>
+</body>
+</html>
