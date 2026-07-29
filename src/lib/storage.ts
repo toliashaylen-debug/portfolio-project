@@ -1,18 +1,29 @@
-// Front-end-only persistence: swaps the original Claude.ai `window.storage`
-// key-value API for plain localStorage. Signatures are kept async/shaped the
-// same as the original so call sites didn't need to change.
+// Shared persistence: backs the app's key-value storage.ts abstraction with
+// a Supabase Postgres table (kv_store) instead of per-browser localStorage,
+// so everyone who opens the deployed site reads/writes the same data. See
+// supabase/migrations/20260729152717_create_kv_store.sql for the schema.
+// Signatures are kept async/shaped the same as before so call sites didn't
+// need to change.
+import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseConfig';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export async function safeGet(key: string): Promise<string | null> {
   try {
-    return window.localStorage.getItem(key);
-  } catch {
+    const { data, error } = await supabase.from('kv_store').select('value').eq('key', key).maybeSingle();
+    if (error) { console.error('storage.get failed for', key, error); return null; }
+    return data ? data.value : null;
+  } catch (e) {
+    console.error('storage.get failed for', key, e);
     return null;
   }
 }
 
 export async function safeSet(key: string, value: string): Promise<boolean> {
   try {
-    window.localStorage.setItem(key, value);
+    const { error } = await supabase.from('kv_store').upsert({ key, value, updated_at: new Date().toISOString() });
+    if (error) { console.error('storage.set failed for', key, error); return false; }
     return true;
   } catch (e) {
     console.error('storage.set failed for', key, e);
@@ -29,8 +40,9 @@ export async function verifiedSet(key: string, value: string): Promise<boolean> 
 
 export async function safeDelete(key: string): Promise<void> {
   try {
-    window.localStorage.removeItem(key);
-  } catch {
-    /* ignore */
+    const { error } = await supabase.from('kv_store').delete().eq('key', key);
+    if (error) console.error('storage.delete failed for', key, error);
+  } catch (e) {
+    console.error('storage.delete failed for', key, e);
   }
 }
