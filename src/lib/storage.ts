@@ -5,9 +5,47 @@
 // Signatures are kept async/shaped the same as before so call sites didn't
 // need to change.
 import { createClient } from '@supabase/supabase-js';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseConfig';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+interface KvRow {
+  key: string;
+  value: string;
+}
+
+type KeyChangeListener = (value: string | null) => void;
+
+const keyListeners = new Map<string, Set<KeyChangeListener>>();
+let realtimeStarted = false;
+
+function ensureRealtimeChannel() {
+  if (realtimeStarted) return;
+  realtimeStarted = true;
+  supabase
+    .channel('kv_store-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kv_store' }, (payload: RealtimePostgresChangesPayload<KvRow>) => {
+      const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Partial<KvRow>;
+      if (!row || !row.key) return;
+      const value = payload.eventType === 'DELETE' ? null : (row.value ?? null);
+      const listeners = keyListeners.get(row.key);
+      if (listeners) listeners.forEach((cb) => cb(value));
+    })
+    .subscribe();
+}
+
+// Live sync: calls `callback` with the new value (or null if deleted)
+// whenever another browser/device changes this key, on top of a single
+// shared realtime channel. Returns an unsubscribe function.
+export function onKeyChange(key: string, callback: KeyChangeListener): () => void {
+  ensureRealtimeChannel();
+  if (!keyListeners.has(key)) keyListeners.set(key, new Set());
+  keyListeners.get(key)!.add(callback);
+  return () => {
+    keyListeners.get(key)?.delete(callback);
+  };
+}
 
 export async function safeGet(key: string): Promise<string | null> {
   try {

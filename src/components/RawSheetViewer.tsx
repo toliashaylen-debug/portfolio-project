@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RawSheetsBundle } from '../types';
-import { safeGet } from '../lib/storage';
+import { safeGet, onKeyChange } from '../lib/storage';
 
 export default function RawSheetViewer({ portfolioId }: { portfolioId: string }) {
   const [open, setOpen] = useState(false);
@@ -8,6 +8,8 @@ export default function RawSheetViewer({ portfolioId }: { portfolioId: string })
   const [error, setError] = useState('');
   const [data, setData] = useState<RawSheetsBundle | null>(null);
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   async function load() {
     setOpen(true);
@@ -26,6 +28,25 @@ export default function RawSheetViewer({ portfolioId }: { portfolioId: string })
       setLoading(false);
     }
   }
+
+  // Live sync: another device's upload invalidates our cached copy. If this
+  // panel is currently open, refresh it in place; otherwise just drop the
+  // cache so the next "View original spreadsheet" click fetches fresh.
+  useEffect(() => {
+    const unsub = onKeyChange('raw-' + portfolioId, (value) => {
+      if (!value) { setData(null); return; }
+      if (!openRef.current) { setData(null); return; }
+      try {
+        const parsed: RawSheetsBundle = JSON.parse(value);
+        setData(parsed);
+        setActiveSheet(parsed.sheets[0] ? parsed.sheets[0].sheetName : null);
+        setError('');
+      } catch {
+        setError('Could not load the saved file.');
+      }
+    });
+    return unsub;
+  }, [portfolioId]);
 
   const active = data ? data.sheets.filter((s) => s.sheetName === activeSheet)[0] : null;
 

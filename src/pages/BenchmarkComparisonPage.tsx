@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { PortfolioConfig, RawSheet, BenchmarkComparison, PortfolioId } from '../types';
 import { PORTFOLIO_SOURCING } from '../lib/constants';
-import { safeGet } from '../lib/storage';
+import { safeGet, onKeyChange } from '../lib/storage';
 import { sheetAllowed } from '../lib/format';
 import { extractBenchmarkComparison } from '../lib/ai';
 import ComparisonBlock from '../components/ComparisonBlock';
@@ -42,6 +42,35 @@ export default function BenchmarkComparisonPage({ id, cfg }: { id: PortfolioId; 
       }
     })();
     return () => { cancelled = true; };
+  }, [id, sourcing]);
+
+  // Live sync: another device's upload can newly supply (or replace) the raw
+  // benchmark sheet — refresh availability, but leave any already-generated
+  // comparison as-is until "Regenerate comparison" is clicked.
+  useEffect(() => {
+    return onKeyChange('raw-' + id, (value) => {
+      if (!value) {
+        setRawSheets(null);
+        setLoadError('No original file saved for this portfolio yet — it saves the next time you upload.');
+        return;
+      }
+      try {
+        const parsed = JSON.parse(value);
+        const allSheets: RawSheet[] = parsed.sheets || [];
+        const restricted = sourcing && sourcing.benchmarkSheets ? allSheets.filter((s) => sheetAllowed(s.sheetName, sourcing.benchmarkSheets)) : allSheets;
+        if (!restricted.length) {
+          setRawSheets(null);
+          setLoadError(sourcing && sourcing.benchmarkSheets
+            ? ('No sheet named "' + sourcing.benchmarkSheets.join(' / ') + '" was found in the saved file.')
+            : 'No sheet data available for this portfolio yet.');
+          return;
+        }
+        setRawSheets(restricted);
+        setLoadError('');
+      } catch {
+        setLoadError('Could not load the saved file.');
+      }
+    });
   }, [id, sourcing]);
 
   async function generate() {

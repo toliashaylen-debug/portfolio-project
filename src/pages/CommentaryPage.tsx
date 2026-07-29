@@ -4,7 +4,7 @@ import { PORTFOLIO_IDS } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, todayStr } from '../lib/format';
 import { callClaude } from '../lib/ai';
-import { safeGet, safeSet } from '../lib/storage';
+import { safeGet, safeSet, onKeyChange } from '../lib/storage';
 
 interface CommentaryEntry {
   date: string;
@@ -22,6 +22,13 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
       const raw = await safeGet('commentary-log');
       setLog(raw ? JSON.parse(raw) : []);
     })();
+  }, []);
+
+  // Live sync: pick up commentary generated from another device.
+  useEffect(() => {
+    return onKeyChange('commentary-log', (value) => {
+      setLog(value ? JSON.parse(value) : []);
+    });
   }, []);
 
   async function generate() {

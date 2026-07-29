@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ConfigsById, Histories, History, PortfolioId } from '../types';
 import { PORTFOLIO_SOURCING } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
@@ -19,6 +19,13 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
 }) {
   const cfg = configs[id];
   const [currentHistory, setCurrentHistory] = useState<History>(histories[id] || []);
+
+  // Live sync: pick up another device's upload to this same portfolio
+  // without disturbing this page's own in-progress name/strategy edits or
+  // the mounted UploadPanel/RawSheetViewer instances.
+  useEffect(() => {
+    setCurrentHistory(histories[id] || []);
+  }, [histories, id]);
 
   const [nameDraft, setNameDraft] = useState(cfg.name);
   const [nameSaved, setNameSaved] = useState(cfg.name);

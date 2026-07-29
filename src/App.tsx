@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ConfigsById, DeskConfig, Histories, History, PortfolioId } from './types';
 import { PORTFOLIO_IDS } from './lib/constants';
-import { safeGet, verifiedSet } from './lib/storage';
+import { safeGet, verifiedSet, onKeyChange } from './lib/storage';
 import BrandMark from './components/BrandMark';
 import SetupWizard from './pages/SetupWizard';
 import LoginGate from './pages/LoginGate';
@@ -57,6 +57,22 @@ export default function App() {
       setHistories(hh);
       setPhase('locked');
     })();
+  }, []);
+
+  // Live sync: pick up config/history changes made by other people on other
+  // devices without needing a manual refresh.
+  useEffect(() => {
+    const unsubs = [
+      onKeyChange('desk-config', (value) => {
+        if (value) setConfig(JSON.parse(value));
+      }),
+      ...PORTFOLIO_IDS.map((id) =>
+        onKeyChange('history-' + id, (value) => {
+          setHistories((prev) => ({ ...prev, [id]: value ? JSON.parse(value) : [] }));
+        })
+      ),
+    ];
+    return () => unsubs.forEach((unsub) => unsub());
   }, []);
 
   function goTo(p: string) { setPage(p); }
