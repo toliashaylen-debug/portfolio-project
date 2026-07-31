@@ -134,6 +134,7 @@ export default function App() {
     const pid = page as PortfolioId;
     pageEl = (
       <PortfolioFullPage
+        key={pid}
         id={pid}
         configs={configsById}
         histories={histories}
