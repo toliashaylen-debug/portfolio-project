@@ -9,9 +9,7 @@ import OverviewPage from './pages/OverviewPage';
 import DeskViewPage from './pages/DeskViewPage';
 import CommonPositionsPage from './pages/CommonPositionsPage';
 import RisksPage from './pages/RisksPage';
-import PortfolioPage from './pages/PortfolioPage';
-import AnnualGraphPage from './pages/AnnualGraphPage';
-import BenchmarkComparisonPage from './pages/BenchmarkComparisonPage';
+import PortfolioFullPage from './pages/PortfolioFullPage';
 import CommentaryPage from './pages/CommentaryPage';
 
 type Phase = 'loading' | 'setup' | 'locked' | 'unlocked';
@@ -28,11 +26,7 @@ function buildNavItems(configsById: ConfigsById): NavItem[] {
     { key: 'desk', label: 'Desk view' },
     { key: 'common', label: 'Common Positions' },
     { key: 'risks', label: 'Risks' },
-    ...PORTFOLIO_IDS.flatMap((id) => ([
-      { key: id, label: configsById[id].name, sub: configsById[id].strategy },
-      { key: id + '-annual', label: configsById[id].name.replace(/\s+Portfolio$/i, '') + ' Annual Graph Prediction' },
-      { key: id + '-benchmark', label: configsById[id].name + ' compared to the Benchmark' },
-    ])),
+    ...PORTFOLIO_IDS.map((id) => ({ key: id, label: configsById[id].name, sub: configsById[id].strategy })),
     { key: 'commentary', label: 'Commentary' },
   ];
 }
@@ -139,7 +133,7 @@ export default function App() {
   else if ((PORTFOLIO_IDS as string[]).includes(page)) {
     const pid = page as PortfolioId;
     pageEl = (
-      <PortfolioPage
+      <PortfolioFullPage
         id={pid}
         configs={configsById}
         histories={histories}
@@ -148,12 +142,6 @@ export default function App() {
         onNameChange={updateName}
       />
     );
-  } else if (PORTFOLIO_IDS.map((id) => id + '-annual').includes(page)) {
-    const pid = page.replace(/-annual$/, '') as PortfolioId;
-    pageEl = <AnnualGraphPage id={pid} cfg={configsById[pid]} history={histories[pid] || []} />;
-  } else if (PORTFOLIO_IDS.map((id) => id + '-benchmark').includes(page)) {
-    const pid = page.replace(/-benchmark$/, '') as PortfolioId;
-    pageEl = <BenchmarkComparisonPage id={pid} cfg={configsById[pid]} />;
   } else if (page === 'commentary') {
     pageEl = <CommentaryPage configs={configsById} histories={histories} />;
   }
