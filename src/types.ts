@@ -177,6 +177,35 @@ export interface MonteCarloAsset {
   weight: number;
   mean: number;
   vol: number;
+  /** True when `vol` came from real historical prices rather than a stated assumption. */
+  volFromHistory: boolean;
+}
+
+/** Derived statistics from a historical price pull. Raw prices are never stored. */
+export interface PriceStats {
+  asOf: string;
+  source: string;
+  windowStart: string | null;
+  windowEnd: string | null;
+  tradingDaysPerYear: number;
+  /** Annualised volatility per ticker, keyed by the ticker as it appears in positions. */
+  byTicker: Record<string, { bbg: string; vol: number; observations: number }>;
+  /** Pairwise correlation, keyed by the two tickers sorted and joined with "|". */
+  corr: Record<string, number>;
+}
+
+export interface MonteCarloCoverage {
+  /** Tickers whose volatility came from historical data. */
+  historical: string[];
+  /** Tickers that fell back to stated asset-class assumptions. */
+  assumed: string[];
+  /** Share of portfolio value covered by historical volatility, 0-1. */
+  historicalWeight: number;
+  /** Correlation pairs sourced from history, and the total number of pairs. */
+  corrPairsHistorical: number;
+  corrPairsTotal: number;
+  statsAsOf: string | null;
+  statsWindow: string | null;
 }
 
 export interface MonteCarloSummaryPoint {
@@ -201,6 +230,7 @@ export interface MonteCarloResult {
   cvar95Value: number;
   numSims: number;
   numMonths: number;
+  coverage: MonteCarloCoverage;
 }
 
 export interface BenchmarkSeriesPoint {

@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { callClaude } from '../lib/ai';
 import { cleanProse } from '../lib/format';
 
-export default function DescriptionWidget({ generatePrompt }: { generatePrompt: () => string }) {
+export default function DescriptionWidget({ generatePrompt, assumptionsNote, placeholderNote }: {
+  generatePrompt: () => string;
+  assumptionsNote?: string;
+  placeholderNote?: string;
+}) {
   const [desc, setDesc] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -31,10 +35,10 @@ export default function DescriptionWidget({ generatePrompt }: { generatePrompt: 
       {desc ? (
         <div className="desk-commentary-text">{desc}</div>
       ) : (
-        <div className="desk-note">This simulation uses stated long-run capital-market assumptions by asset class (not this portfolio's own fitted history, which isn't available from a single snapshot) — it's a modeled range of outcomes, not a prediction. Click to generate a plain-language description.</div>
+        <div className="desk-note">{placeholderNote ?? "This simulation uses stated long-run capital-market assumptions by asset class (not this portfolio's own fitted history, which isn't available from a single snapshot) — it's a modeled range of outcomes, not a prediction. Click to generate a plain-language description."}</div>
       )}
       <div className="desk-note" style={{ marginTop: 'var(--sp-3)' }}>
-        Assumptions: equity ETFs ~9%/16% (mean/volatility annualized), individual equities ~10%/22%, fixed income ~4.5%/2%. Correlation: 0.6 within the same sector, 0.35 across equity sectors, 0.7 among fixed income holdings, 0.1 between equity and fixed income.
+        {assumptionsNote ?? 'Assumptions: equity ETFs ~9%/16% (mean/volatility annualized), individual equities ~10%/22%, fixed income ~4.5%/2%. Correlation: 0.6 within the same sector, 0.35 across equity sectors, 0.7 among fixed income holdings, 0.1 between equity and fixed income.'}
       </div>
     </div>
   );

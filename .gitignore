@@ -16,6 +16,12 @@ dist-ssr
 !.env.example
 .claude/
 
+# Raw Bloomberg price series must never be committed or published — only the
+# derived volatility/correlation statistics are uploaded (to Supabase).
+prices.csv
+*.prices.csv
+bloomberg-request/*.csv
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

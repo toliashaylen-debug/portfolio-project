@@ -1,5 +1,6 @@
-import type { Position, MonteCarloResult, MonteCarloAsset } from '../types';
+import type { Position, MonteCarloResult, MonteCarloAsset, PriceStats, MonteCarloCoverage } from '../types';
 import { valueOf } from './compute';
+import { corrKey } from './priceStats';
 
 function cholesky(matrix: number[][]): number[][] {
   const n = matrix.length;
@@ -31,21 +32,51 @@ function assumptionsFor(p: Position): { mean: number; vol: number } {
   return { mean: 0.06, vol: 0.15 };
 }
 
-export function runMonteCarlo(positions: Position[], numSims = 2000, numMonths = 12, asOfDateStr?: string | null): MonteCarloResult | null {
+export function runMonteCarlo(
+  positions: Position[],
+  numSims = 2000,
+  numMonths = 12,
+  asOfDateStr?: string | null,
+  stats?: PriceStats | null,
+): MonteCarloResult | null {
   if (!positions || !positions.length) return null;
   const totalValue = positions.reduce((s, p) => s + valueOf(p), 0);
   if (!totalValue) return null;
 
+  // Volatility prefers realised history when we have it; expected return always
+  // stays forward-looking, since trailing realised return is a poor estimator of
+  // future return (a name that compounded 40%/yr does not have a 40% drift).
   const assets: MonteCarloAsset[] = positions.map((p) => {
     const weight = valueOf(p) / totalValue;
     const { mean, vol } = assumptionsFor(p);
-    return { ticker: p.ticker, sleeve: p.sleeve, sector: p.sector, assetType: p.assetType, weight, mean, vol };
+    const hist = stats?.byTicker?.[p.ticker];
+    const useHist = !!hist && Number.isFinite(hist.vol) && hist.vol > 0;
+    return {
+      ticker: p.ticker,
+      sleeve: p.sleeve,
+      sector: p.sector,
+      assetType: p.assetType,
+      weight,
+      mean,
+      vol: useHist ? hist!.vol : vol,
+      volFromHistory: useHist,
+    };
   });
   const n = assets.length;
 
+  let corrPairsHistorical = 0;
+  let corrPairsTotal = 0;
   const corr: number[][] = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => {
     if (i === j) return 1;
     const a = assets[i], b = assets[j];
+    if (i < j) corrPairsTotal++;
+    const empirical = stats?.corr?.[corrKey(a.ticker, b.ticker)];
+    if (typeof empirical === 'number' && Number.isFinite(empirical)) {
+      if (i < j) corrPairsHistorical++;
+      // Clamp strictly inside [-1,1]; exact ±1 makes the covariance matrix
+      // singular and Cholesky degenerate.
+      return Math.max(-0.999, Math.min(0.999, empirical));
+    }
     if (a.sleeve !== b.sleeve) return 0.1;
     if (a.sleeve === 'fixedIncome') return 0.7;
     if (a.sector && b.sector && a.sector.trim().toLowerCase() === b.sector.trim().toLowerCase()) return 0.6;
@@ -97,5 +128,15 @@ export function runMonteCarlo(positions: Position[], numSims = 2000, numMonths =
   const cvar95Value = tailVals.reduce((s, v) => s + v, 0) / tailVals.length;
   const cvar95Loss = totalValue - cvar95Value;
 
-  return { totalValue, assets, summary, var95Loss, var95Value, cvar95Loss, cvar95Value, numSims, numMonths };
+  const coverage: MonteCarloCoverage = {
+    historical: assets.filter((a) => a.volFromHistory).map((a) => a.ticker),
+    assumed: assets.filter((a) => !a.volFromHistory).map((a) => a.ticker),
+    historicalWeight: assets.reduce((s, a) => s + (a.volFromHistory ? a.weight : 0), 0),
+    corrPairsHistorical,
+    corrPairsTotal,
+    statsAsOf: stats?.asOf ?? null,
+    statsWindow: stats?.windowStart && stats?.windowEnd ? `${stats.windowStart} → ${stats.windowEnd}` : null,
+  };
+
+  return { totalValue, assets, summary, var95Loss, var95Value, cvar95Loss, cvar95Value, numSims, numMonths, coverage };
 }
