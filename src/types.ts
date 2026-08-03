@@ -153,6 +153,28 @@ export interface PortfolioSourcing {
   readSheets: string[];
   strategySheets: string[];
   benchmarkSheets: string[];
+  /** Sheet(s) daily P&L may be read from — nothing else counts as a source. */
+  dailyPnlSheets: string[];
+}
+
+export interface DailyPnlPoint {
+  /** ISO date, YYYY-MM-DD. */
+  date: string;
+  /** Profit or loss for that day, in dollars. */
+  pnl: number;
+  /** That day's return, as a fraction (0.012 = +1.2%). Null when not stated. */
+  returnPct: number | null;
+  /** Portfolio value at the close of that day, when the sheet gives one. */
+  endingValue: number | null;
+}
+
+export interface DailyPnlSeries {
+  found: boolean;
+  sheetUsed: string | null;
+  /** How the figures were derived, for display — the desk shows its working. */
+  method: string | null;
+  points: DailyPnlPoint[];
+  extractedAt: string;
 }
 
 export interface PortfolioMetrics {

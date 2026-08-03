@@ -1,4 +1,4 @@
-import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison } from '../types';
+import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison, DailyPnlSeries } from '../types';
 import { gridToTSV } from './workbook';
 
 function stripJsonFence(text: string): string {
@@ -41,8 +41,20 @@ export function sleeveFromSection(sectionText: string | null | undefined): Sleev
   return null;
 }
 
+// Vite substitutes import.meta.env.* statically at build time. Under plain Node
+// (verification scripts) it does not exist, so fall back to process.env there.
+function apiKeyFromEnv(): string | undefined {
+  try {
+    const fromVite = import.meta.env?.VITE_ANTHROPIC_API_KEY;
+    if (fromVite) return fromVite;
+  } catch { /* not running under Vite */ }
+  // Reached via globalThis so the browser build needs no Node type definitions.
+  const g = globalThis as unknown as { process?: { env?: Record<string, string | undefined> } };
+  return g.process?.env?.VITE_ANTHROPIC_API_KEY;
+}
+
 export async function callClaude(prompt: string, maxTokens = 900): Promise<string> {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+  const apiKey = apiKeyFromEnv();
   if (!apiKey) throw new Error('No Anthropic API key configured — set VITE_ANTHROPIC_API_KEY in your .env file.');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -233,4 +245,116 @@ ${sheetBlocks}`;
     throw new Error(`The AI reader couldn't produce usable output after ${maxAttempts} attempts. Try again — if it keeps happening, the sheet may have unusual formatting worth a closer look.`);
   }
   return parsed;
+}
+
+/**
+ * Converts a spreadsheet date cell to an ISO date. Excel stores dates as serial
+ * days from 1899-12-30. This is done in code rather than asked of the model,
+ * which gets serial arithmetic wrong often enough to matter.
+ */
+export function toIsoDate(raw: number | string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'number' || (typeof raw === 'string' && /^\d+(\.\d+)?$/.test(raw.trim()))) {
+    const serial = Number(raw);
+    // Excel serials below ~20000 (1954) in this context are almost certainly not
+    // dates; above 60000 (2064) is past anything plausible for a daily log.
+    if (!Number.isFinite(serial) || serial < 20000 || serial > 60000) return null;
+    const ms = Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000;
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return null;
+}
+
+/**
+ * Reads a dated daily profit-and-loss series out of whichever sheet a portfolio
+ * is permitted to source it from. Two very different layouts are in play: a log
+ * of ending balances (where P&L is the day-over-day change) and an explicit
+ * per-period gain column that may be split across separate equity and fixed
+ * income blocks needing summation per date.
+ */
+export async function extractDailyPnl(sheets: RawSheet[]): Promise<DailyPnlSeries> {
+  const sheetBlocks = sheets.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid)}\n</sheet>`).join('\n\n');
+  const prompt = `You are reading a daily performance log from an investment portfolio workbook, given below as tab-separated grids. Your task is to produce a dated series of DAILY PROFIT AND LOSS in dollars.
+
+These sheets are laid out in very different ways. Work out which of these applies, and say which in "method":
+
+LAYOUT A — a dated log of the portfolio's ending balance / NAV.
+Here the daily P&L is NOT written down; you must derive it as the change in ending balance from the previous dated row to the current one. Example: if 2026-07-29 closes at 1,951,978.47 and 2026-07-30 closes at 1,980,029.41, then the P&L for 2026-07-30 is +28,050.94. The first dated row has no prior day, so it has no P&L — omit it from the series entirely rather than reporting zero. If the sheet also has a daily percentage-change column, report it as "returnPct" as a decimal fraction (0.0143 for +1.43%), and report the ending balance as "endingValue".
+
+LAYOUT B — an explicit per-period gain column, e.g. "Period Gain ($)", "Daily P&L", "Total Gain" alongside a "Daily Return %".
+Here take the stated dollar figure directly; do NOT recompute it from market values, because those columns often include cash inflows as the book was funded and differ from true P&L. Report the stated daily return as "returnPct" (as a decimal fraction) and the market value column as "endingValue".
+
+CRITICAL — a sheet may contain MORE THAN ONE such block, typically one for the equity sleeve and a separate one further down for fixed income, each with its own date column and its own "Period Gain ($)" column. When that happens the portfolio's daily P&L for a given date is the SUM of the blocks for that same date. Add them together per date. If a date appears in only one block, use just that block's figure for that date, and note the partial coverage in "method". Do not report the equity block alone as if it were the whole portfolio.
+
+Rules that apply to every layout:
+- Ignore rows that are clearly not real data: blank rows, rows where the balance/gain cell is empty, formula errors (#DIV/0!, #NAME?, #REF!), and bare placeholders such as a lone -1 or 0 sitting in an otherwise empty row. A value in an adjacent column does not make the row real.
+- Ignore summary/statistics blocks (ROI, annual volatility, Sharpe ratio, risk-free rate inputs) and any explanatory footnote prose. Those are not daily observations.
+- DO NOT convert or reformat dates. Copy the date cell through EXACTLY as it appears in the grid into "dateRaw" — if it is a number such as 46233, return the number 46233; if it is text such as "2026-07-30" or "30/07/2026", return that same string. Calendar conversion is handled downstream; attempting it yourself introduces errors.
+- Return the series in ascending date order. Do not invent, interpolate or smooth any day that is not actually present.
+- If the sheet genuinely contains no dated daily performance data, set "found" to false and return an empty series.
+
+Respond with ONLY strict JSON, no markdown fences, no text outside the JSON, in exactly this shape:
+{"found":boolean,"sheetUsed":string|null,"method":string,"points":[{"dateRaw":number|string,"pnl":number,"returnPct":number|null,"endingValue":number|null}]}
+
+"method" should be one short sentence stating which layout you used and, if you summed blocks, that you did so — e.g. "Derived from day-over-day change in the Ending Balance column." or "Summed the stated Period Gain ($) from the equity and fixed income blocks per date."
+
+Sheets:
+${sheetBlocks}`;
+
+  interface RawPnlPoint {
+    dateRaw: number | string;
+    pnl: number;
+    returnPct: number | null;
+    endingValue: number | null;
+  }
+  interface RawPnlResponse {
+    found: boolean;
+    sheetUsed: string | null;
+    method: string;
+    points: RawPnlPoint[];
+  }
+
+  let parsed: RawPnlResponse | null = null;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let raw: string;
+    try {
+      raw = await callClaude(prompt, 4000);
+    } catch (e) {
+      if (attempt === maxAttempts - 1) throw e;
+      continue;
+    }
+    const candidate = parseJsonLoosely<RawPnlResponse>(raw);
+    if (candidate && typeof candidate.found === 'boolean' && Array.isArray(candidate.points)) { parsed = candidate; break; }
+  }
+  if (!parsed) {
+    throw new Error(`The AI reader couldn't produce a usable daily P&L series after ${maxAttempts} attempts. Try again — if it keeps happening, the sheet may have unusual formatting worth a closer look.`);
+  }
+
+  const points = (parsed.points || [])
+    .map((p) => {
+      if (!p || !Number.isFinite(Number(p.pnl))) return null;
+      const date = toIsoDate(p.dateRaw);
+      if (!date) return null;
+      return {
+        date,
+        pnl: Number(p.pnl),
+        returnPct: p.returnPct === null || p.returnPct === undefined || !Number.isFinite(Number(p.returnPct)) ? null : Number(p.returnPct),
+        endingValue: p.endingValue === null || p.endingValue === undefined || !Number.isFinite(Number(p.endingValue)) ? null : Number(p.endingValue),
+      };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    found: !!parsed.found && points.length > 0,
+    sheetUsed: parsed.sheetUsed || null,
+    method: parsed.method || null,
+    points,
+    extractedAt: new Date().toISOString().slice(0, 10),
+  };
 }

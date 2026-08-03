@@ -10,6 +10,8 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     readSheets: ['portfolio - cover page', 'cover page', 'backlog (ledger)', 'backlog', 'daily performance', 'benchmark'],
     strategySheets: ['portfolio - cover page', 'cover page'],
     benchmarkSheets: ['benchmark'],
+    // Daily P&L comes from the Daily Performance sheet and nowhere else.
+    dailyPnlSheets: ['daily performance'],
   },
   p2: {
     positionsSheets: ['active portfolio'],
@@ -17,6 +19,9 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     readSheets: ['active portfolio', 'eq backlog', 'fx_backlog', 'fx backlog', 'fi backlog', 'benchmark'],
     strategySheets: ['active portfolio'],
     benchmarkSheets: ['benchmark'],
+    // Daily P&L comes from the Benchmark sheet and nowhere else — note it is
+    // split there into separate equity and fixed income blocks.
+    dailyPnlSheets: ['benchmark'],
   },
   p3: null,
 };

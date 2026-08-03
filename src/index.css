@@ -466,6 +466,35 @@ table.desk-table td.muted { color: var(--text-dim); font-family: var(--sans); fo
 .desk-commentary-date { font-family: var(--mono); font-size: 11.5px; color: var(--gold); margin-bottom: var(--sp-2); font-weight: 500; }
 .desk-commentary-text { font-size: 14px; line-height: 1.75; color: var(--text); white-space: pre-wrap; }
 
+/* ============================================================
+   Daily P&L comparison bars
+   ============================================================ */
+.pnl-bars { display: flex; flex-direction: column; gap: var(--sp-3); }
+.pnl-bar-row { display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; gap: var(--sp-4); }
+.pnl-bar-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.pnl-bar-track {
+  position: relative; height: 26px; background: var(--panel-2);
+  border-radius: var(--radius-sm); overflow: hidden;
+}
+.pnl-bar-zero {
+  position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+  background: var(--border-strong); z-index: 2;
+}
+.pnl-bar-fill { position: absolute; top: 4px; bottom: 4px; border-radius: 2px; }
+.pnl-bar-fill.up { background: var(--pos); }
+.pnl-bar-fill.down { background: var(--neg); }
+.pnl-bar-value { font-size: 14px; font-weight: 600; text-align: right; white-space: nowrap; }
+.pnl-bar-value.up { color: var(--pos); }
+.pnl-bar-value.down { color: var(--neg); }
+.pnl-bar-value.muted { color: var(--text-faint); font-size: 11.5px; font-weight: 400; font-family: var(--sans); }
+.pnl-bar-pct { display: block; font-size: 11px; font-weight: 500; opacity: 0.75; margin-top: 1px; }
+@media (max-width: 700px) {
+  .pnl-bar-row { grid-template-columns: 1fr 110px; grid-template-areas: 'name value' 'track track'; gap: var(--sp-2) var(--sp-3); }
+  .pnl-bar-name { grid-area: name; }
+  .pnl-bar-value { grid-area: value; }
+  .pnl-bar-track { grid-area: track; }
+}
+
 .desk-spin {
   display: inline-block; width: 12px; height: 12px;
   border: 2px solid var(--border-strong); border-top-color: var(--navy);
