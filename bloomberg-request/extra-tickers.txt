@@ -1,0 +1,11 @@
+# Securities you hold but which aren't in an uploaded snapshot yet.
+# Format:  <app ticker> = <bloomberg ticker>
+#
+# These get added to the pull so you don't need a second Terminal trip when you
+# buy something before uploading the spreadsheet that reflects it. Once the
+# position appears in an uploaded snapshot it's picked up automatically and the
+# line here becomes redundant (harmless to leave, though).
+#
+# Lines starting with # are ignored.
+
+SNDK = SNDK US Equity

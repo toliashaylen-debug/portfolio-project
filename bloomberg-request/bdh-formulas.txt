@@ -38,3 +38,4 @@ F2	=BDH("LOHA US Equity","PX_LAST",TODAY()-1826,TODAY(),"Per=D","Dir=V","Days=T"
 G2	=BDH("AIR FP Equity","PX_LAST",TODAY()-1826,TODAY(),"Per=D","Dir=V","Days=T","Fill=P","cols=1;rows=1400")
 H2	=BDH("EMBJ US Equity","PX_LAST",TODAY()-1826,TODAY(),"Per=D","Dir=V","Days=T","Fill=P","cols=1;rows=1400")
 I2	=BDH("EQTL3","PX_LAST",TODAY()-1826,TODAY(),"Per=D","Dir=V","Days=T","Fill=P","cols=1;rows=1400")
+J2	=BDH("SNDK US Equity","PX_LAST",TODAY()-1826,TODAY(),"Per=D","Dir=V","Days=T","Fill=P","cols=1;rows=1400")

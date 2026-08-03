@@ -1,7 +1,7 @@
 # Bloomberg 5-year price pull
 
 Generated 2026-08-03 from the live holdings in Supabase.
-35 unique securities across 2 funded portfolio(s).
+36 unique securities across 2 funded portfolio(s).
 
 Sourcing honoured: p1 = Cover Page only, p2 = Active Portfolio only, p3 = its single sheet (unrestricted).
 

@@ -40,6 +40,7 @@ SECURITIES = [
     "AIR FP Equity",
     "EMBJ US Equity",
     "EQTL3",
+    "SNDK US Equity",
 ]
 
 END = dt.date.today()

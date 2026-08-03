@@ -6,8 +6,26 @@
 //   node scripts/generate-bloomberg-request.mjs
 //
 // Output lands in bloomberg-request/.
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, PORTFOLIO_IDS, SOURCE_SHEETS, fetchHistory } from './shared.mjs';
+
+// Securities you already hold but which aren't in an uploaded snapshot yet.
+// One per line as "<app ticker> = <bloomberg ticker>", e.g.
+//     SNDK = SNDK US Equity
+// Lets you pull history for a new position on the same Terminal trip, before
+// the spreadsheet reflecting it has been uploaded.
+const EXTRA_PATH = 'bloomberg-request/extra-tickers.txt';
+function readExtras() {
+  if (!existsSync(EXTRA_PATH)) return [];
+  return readFileSync(EXTRA_PATH, 'utf8')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/#.*$/, '').trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [left, right] = line.split('=').map((s) => s.trim());
+      return { ticker: left, bbg: right || left, confident: true, manual: true };
+    });
+}
 
 // Best-effort mapping from the identifier as it appears in the spreadsheet to
 // Bloomberg ticker syntax. Anything uncertain is flagged for manual review
@@ -60,9 +78,11 @@ for (const id of PORTFOLIO_IDS) {
 }
 
 const holdings = rows.filter((r) => !r.empty);
+const extras = readExtras();
 // De-duplicate: a ticker held in more than one book only needs pulling once
-// (XLV, for example, sits in both Shaylen's and Antonio's books).
-const unique = [...new Map(holdings.map((h) => [h.bbg, h])).values()];
+// (XLV, for example, sits in both Shaylen's and Antonio's books). Manual extras
+// are appended after, and skipped if the snapshot already covers them.
+const unique = [...new Map([...holdings, ...extras].map((h) => [h.bbg, h])).values()];
 const needsReview = unique.filter((h) => !h.confident);
 
 mkdirSync('bloomberg-request', { recursive: true });
@@ -189,6 +209,10 @@ console.log(`${unique.length} unique securities (${holdings.length} holdings inc
 for (const id of PORTFOLIO_IDS) {
   const n = holdings.filter((h) => h.id === id).length;
   console.log(`  ${id}: ${n ? `${n} holdings from "${holdings.find((h) => h.id === id).sourceSheet}"` : 'no data uploaded'}`);
+}
+const manualIncluded = unique.filter((h) => h.manual);
+if (manualIncluded.length) {
+  console.log(`  manual additions (not yet in an uploaded snapshot): ${manualIncluded.map((h) => h.ticker).join(', ')}`);
 }
 console.log(`${needsReview.length} identifiers flagged for manual verification`);
 console.log('wrote bloomberg-request/{README.md,tickers.txt,bdh-formulas.txt,fetch.py}');
