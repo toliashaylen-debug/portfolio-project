@@ -18,13 +18,6 @@ const CAPABILITIES = [
   },
 ];
 
-const FIGURES = [
-  { value: 'Three', label: 'Portfolios tracked independently, each with its own sourcing rules' },
-  { value: '2,000', label: 'Simulated paths behind every annual projection' },
-  { value: '5yr', label: 'Historical window behind measured volatility and correlation' },
-  { value: 'Live', label: 'Updates propagate to every open device as they are uploaded' },
-];
-
 export default function HomePage({ onEnter }: { onEnter: () => void }) {
   return (
     <div className="home">
@@ -32,7 +25,6 @@ export default function HomePage({ onEnter }: { onEnter: () => void }) {
         <BrandLockup size={32} variant="light" subtitle="Private Investment Desk" />
         <nav className="home-topnav">
           <a href="#capabilities">Capabilities</a>
-          <a href="#approach">Approach</a>
           <button className="desk-btn on-dark" onClick={onEnter}>Sign in</button>
         </nav>
       </header>
@@ -74,28 +66,6 @@ export default function HomePage({ onEnter }: { onEnter: () => void }) {
                 <h3 className="home-card-title">{c.title}</h3>
                 <p className="home-card-body">{c.body}</p>
               </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="home-section alt" id="approach">
-        <div className="home-inner">
-          <div className="home-section-head">
-            <div className="home-rule" />
-            <h2 className="home-section-title">How it is put together</h2>
-            <p className="home-section-lede">
-              Each portfolio is restricted to its own designated source sheet, so figures never bleed between
-              books. Where a holding has no usable price history, it falls back to a stated assumption — and the
-              desk says so plainly rather than implying more precision than the data supports.
-            </p>
-          </div>
-          <div className="home-figures">
-            {FIGURES.map((f) => (
-              <div className="home-figure" key={f.label}>
-                <div className="home-figure-value">{f.value}</div>
-                <div className="home-figure-label">{f.label}</div>
-              </div>
             ))}
           </div>
         </div>
