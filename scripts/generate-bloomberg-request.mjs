@@ -77,10 +77,20 @@ writeFileSync(
   JSON.stringify(Object.fromEntries(unique.map((h) => [h.bbg, h.ticker])), null, 2) + '\n'
 );
 
+// "Per=D" is load-bearing: without it the Excel wizard may default to annual or
+// monthly periodicity. Annual data yields only 4 returns over 5 years, which is
+// far too few to estimate volatility (95% CI spans roughly 0.6x to 3.7x the
+// estimate) and cannot produce a usable correlation matrix at all.
+const bdhHeader = `IMPORTANT: these formulas request DAILY closes ("Per=D") — about 1,260
+observations per security over five years. Do not change the periodicity to
+weekly/monthly/annual: the volatility and correlation estimates need daily data
+to be meaningful, and the importer will reject anything sparser.
+
+`;
 const bdh = unique
-  .map((h, i) => `${String.fromCharCode(65 + (i % 26))}${Math.floor(i / 26) + 1}\t=BDH("${h.bbg}","PX_LAST",TODAY()-1826,TODAY(),"Dir=V","Days=T","Fill=P","cols=1;rows=1300")`)
+  .map((h, i) => `${String.fromCharCode(65 + (i % 26))}${Math.floor(i / 26) + 1}\t=BDH("${h.bbg}","PX_LAST",TODAY()-1826,TODAY(),"Per=D","Dir=V","Days=T","Fill=P","cols=1;rows=1400")`)
   .join('\n');
-writeFileSync('bloomberg-request/bdh-formulas.txt', bdh + '\n');
+writeFileSync('bloomberg-request/bdh-formulas.txt', bdhHeader + bdh + '\n');
 
 const py = `# Run on a machine logged into a Bloomberg Terminal:
 #     pip install blpapi pandas

@@ -7,7 +7,11 @@
 // Expected CSV shape: a date column first, then one column per security headed
 // with the Bloomberg ticker exactly as listed in bloomberg-request/tickers.txt.
 import { readFileSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { kvSet } from './shared.mjs';
+
+// xlsx is CJS and only wires up its filesystem reader via require().
+const XLSX = createRequire(import.meta.url)('xlsx');
 
 const TRADING_DAYS = 252;
 const MIN_RETURNS_FOR_VOL = 60;   // ~3 months; below this a vol estimate is noise
@@ -44,7 +48,28 @@ function parseCsv(text) {
   return { header, rows: lines.slice(1).map(split) };
 }
 
-const { header, rows } = parseCsv(readFileSync(csvPath, 'utf8'));
+// Bloomberg's Excel add-in produces .xlsx directly, so accept it without
+// requiring a manual conversion to CSV first.
+function parseWorkbook(path) {
+  const wb = XLSX.readFile(path);
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+  const nonEmpty = aoa.filter((r) => r && r.some((c) => c !== null && c !== undefined && c !== ''));
+  const header = nonEmpty[0].map((c) => String(c ?? '').trim());
+  const rows = nonEmpty.slice(1).map((r) =>
+    r.map((c, i) => {
+      // Excel stores dates as serial numbers; normalise column 0 to ISO.
+      if (i === 0 && typeof c === 'number') {
+        return new Date(Date.UTC(1899, 11, 30) + c * 86400000).toISOString().slice(0, 10);
+      }
+      return c === null || c === undefined ? '' : String(c);
+    })
+  );
+  return { header, rows };
+}
+
+const isExcel = /\.xlsx?$/i.test(csvPath);
+const { header, rows } = isExcel ? parseWorkbook(csvPath) : parseCsv(readFileSync(csvPath, 'utf8'));
 const securityCols = header.slice(1);
 console.log(`Parsed ${rows.length} rows x ${securityCols.length} securities from ${csvPath}`);
 
@@ -129,6 +154,27 @@ for (let i = 0; i < usableCols.length; i++) {
     corr[[ta, tb].sort().join('|')] = c;
     pairCount++;
   }
+}
+
+// Refuse sparse data outright rather than uploading estimates that look
+// authoritative but are statistically meaningless. Volatility from n returns has
+// a 95% CI of roughly [s*sqrt((n-1)/X2_0.975), s*sqrt((n-1)/X2_0.025)] — at n=4
+// that spans 0.57x to 3.7x the point estimate, i.e. useless, and a correlation
+// matrix needs far more observations than assets or it is rank-deficient.
+if (!Object.keys(byTicker).length) {
+  const maxReturns = Math.max(0, ...securityCols.map((c) => returns.get(c).filter((r) => r !== null).length));
+  console.error('\nRefusing to upload — not enough observations per security.');
+  console.error(`  Most data found for any security: ${maxReturns} return(s). Minimum required: ${MIN_RETURNS_FOR_VOL}.`);
+  console.error(`  Rows in file: ${rows.length}.`);
+  if (maxReturns > 0 && maxReturns < 15) {
+    console.error('\n  This looks like ANNUAL or QUARTERLY data. The calculation needs DAILY closes');
+    console.error('  (~1,260 observations over five years).');
+    console.error('\n  In Bloomberg, set periodicity to DAILY. The generated formulas in');
+    console.error('  bloomberg-request/bdh-formulas.txt already force this via "Per=D" — re-pull');
+    console.error('  using those exact formulas, or set Periodicity = Daily in the wizard.');
+  }
+  console.error('\n  Nothing was uploaded; the app keeps using its previous inputs.');
+  process.exit(1);
 }
 
 const stats = {
