@@ -32,6 +32,8 @@ export default function DeskViewPage({ configs, histories }: { configs: ConfigsB
       {all.length === 0 ? (
         <div className="desk-note">No positions uploaded yet across any portfolio.</div>
       ) : (
+        <div className="desk-panel">
+        <div className="desk-table-wrap">
         <table className="desk-table">
           <thead>
             <tr>
@@ -57,6 +59,8 @@ export default function DeskViewPage({ configs, histories }: { configs: ConfigsB
             ))}
           </tbody>
         </table>
+        </div>
+        </div>
       )}
     </div>
   );

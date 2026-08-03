@@ -6,6 +6,7 @@ import SleeveChip from './SleeveChip';
 export default function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
   const sorted = [...positions].sort((a, b) => b.value - a.value);
   return (
+    <div className="desk-table-wrap">
     <table className="desk-table">
       <thead>
         <tr>
@@ -53,5 +54,6 @@ export default function PositionsTable({ positions }: { positions: EnrichedPosit
         })}
       </tbody>
     </table>
+    </div>
   );
 }

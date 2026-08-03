@@ -25,10 +25,10 @@ export default function LoginGate({ config, onUnlock }: { config: DeskConfig; on
     <div className="desk-gate">
       <div className="desk-gate-box">
         <div className="brand-row">
-          <BrandMark size={26} />
-          <span className="eyebrow">Safra · Private desk</span>
+          <BrandMark size={30} />
+          <span className="eyebrow">Private Investment Desk</span>
         </div>
-        <h1 className="display">Enter password</h1>
+        <h1 className="display">Sign in</h1>
         <input
           className="desk-input"
           type="password"

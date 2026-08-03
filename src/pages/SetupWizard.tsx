@@ -31,8 +31,8 @@ export default function SetupWizard({ onComplete }: { onComplete: (cfg: DeskConf
     <div className="desk-gate">
       <div className="desk-gate-box" style={{ width: '420px' }}>
         <div className="brand-row">
-          <BrandMark size={26} />
-          <span className="eyebrow">Safra · First-time setup</span>
+          <BrandMark size={30} />
+          <span className="eyebrow">First-time setup</span>
         </div>
         <h1 className="display">Set up the desk</h1>
         <div className="desk-row" style={{ gap: '8px' }}>
