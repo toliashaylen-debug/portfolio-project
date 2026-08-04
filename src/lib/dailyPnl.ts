@@ -74,3 +74,50 @@ export function latestPoint(series: DailyPnlSeries | null) {
   if (!series || !series.points.length) return null;
   return series.points[series.points.length - 1];
 }
+
+export interface PnlSummary {
+  today: number | null;
+  todayPct: number | null;
+  total: number;
+  best: { date: string; pnl: number } | null;
+  worst: { date: string; pnl: number } | null;
+  upDays: number;
+  downDays: number;
+  sessions: number;
+  winRate: number | null;
+  avgDay: number | null;
+  /** Recent daily values, for a sparkline. */
+  spark: number[];
+}
+
+export function summarize(series: DailyPnlSeries | null): PnlSummary | null {
+  if (!series || !series.points.length) return null;
+  const pts = series.points;
+  const last = pts[pts.length - 1];
+  const total = pts.reduce((s, p) => s + p.pnl, 0);
+  const up = pts.filter((p) => p.pnl > 0).length;
+  const down = pts.filter((p) => p.pnl < 0).length;
+  const sorted = [...pts].sort((a, b) => a.pnl - b.pnl);
+  return {
+    today: last.pnl,
+    todayPct: last.returnPct,
+    total,
+    best: sorted.length ? { date: sorted[sorted.length - 1].date, pnl: sorted[sorted.length - 1].pnl } : null,
+    worst: sorted.length ? { date: sorted[0].date, pnl: sorted[0].pnl } : null,
+    upDays: up,
+    downDays: down,
+    sessions: pts.length,
+    winRate: pts.length ? up / pts.length : null,
+    avgDay: pts.length ? total / pts.length : null,
+    spark: pts.slice(-20).map((p) => p.pnl),
+  };
+}
+
+/** Combined desk-wide P&L per date, across every book that traded that day. */
+export function deskTotals(seriesList: (DailyPnlSeries | null)[]): { date: string; pnl: number }[] {
+  const byDate = new Map<string, number>();
+  seriesList.forEach((s) =>
+    s?.points.forEach((p) => byDate.set(p.date, (byDate.get(p.date) || 0) + p.pnl))
+  );
+  return [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, pnl]) => ({ date, pnl }));
+}

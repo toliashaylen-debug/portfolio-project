@@ -43,6 +43,16 @@ export default function ComparisonBlock({ title, data, sleeveLabel }: { title: s
       {data.benchmarkSeries && data.benchmarkSeries.length > 1 ? (
         <BenchmarkLineChart series={data.benchmarkSeries} color="#144B87" label={data.benchmarkName || 'Benchmark'} />
       ) : null}
+      {(data.portfolioLabel || data.benchmarkLabel) ? (
+        <div className="desk-note" style={{ marginTop: 'var(--sp-4)', borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--sp-3)' }}>
+          Read from the sheet as — <strong>yours:</strong> “{data.portfolioLabel || 'unlabelled'}”
+          {data.portfolioReturnRaw !== null && data.portfolioReturnRaw !== undefined ? ` (cell value ${data.portfolioReturnRaw})` : ''}
+          {' · '}
+          <strong>benchmark:</strong> “{data.benchmarkLabel || 'unlabelled'}”
+          {data.benchmarkReturnRaw !== null && data.benchmarkReturnRaw !== undefined ? ` (cell value ${data.benchmarkReturnRaw})` : ''}.
+          If either is reading the wrong cell, regenerate the comparison.
+        </div>
+      ) : null}
     </div>
   );
 }

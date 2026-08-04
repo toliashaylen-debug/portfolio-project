@@ -1,4 +1,4 @@
-import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison, DailyPnlSeries } from '../types';
+import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison, BenchmarkSideData, BenchmarkSeriesPoint, DailyPnlSeries } from '../types';
 import { gridToTSV } from './workbook';
 
 function stripJsonFence(text: string): string {
@@ -207,10 +207,22 @@ export async function extractBenchmarkComparison(sheets: RawSheet[]): Promise<Be
   const sheetBlocks = sheets.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid)}\n</sheet>`).join('\n\n');
   const prompt = `You are reading a "Benchmark" sheet from an investment portfolio workbook, given below as tab-separated grids. This kind of sheet compares the portfolio's own equity and fixed-income performance against market benchmarks — typically the S&P 500 (or "SPX") for equities, and LQD (an investment-grade corporate bond ETF) for fixed income — usually over some tracked date range. Different portfolios lay this out very differently — some have just a simple summary figure, others have a full daily time series with volatility and Sharpe ratio calculations. Read whatever is actually there.
 
+THE SINGLE MOST IMPORTANT THING: do not mix up which number belongs to the PORTFOLIO and which belongs to the BENCHMARK. Getting these the wrong way round inverts the result and reports a gain as a loss. Decide by reading the LABEL attached to each cell, never by column order or position — the portfolio's figure is sometimes to the left of the benchmark's and sometimes to the right.
+
+- A cell labelled with a possessive phrase like "My portfolio FI", "My portfilio FI", "My porfilio equities", "My Equity — since inception", "Equity Cum. %", "FI Cum. %", "Equity Cum % (CF-adj)", "My FI — since inception" is the PORTFOLIO's own return.
+- A cell labelled with a market instrument name like "LQD", "LQD US Equity", "SPX", "S&P 500", "SPX Index — same window" is the BENCHMARK's return.
+- Labels are frequently MISSPELLED ("portfilio", "porfilio"). Match on meaning, not exact spelling.
+
+Labels sit in different places relative to their value depending on the block. A label may be:
+  (a) in the SAME row, in an earlier column — e.g. a row starting with "LQD" whose cumulative return sits several columns later in that same row; or
+  (b) in the row DIRECTLY ABOVE its value, in the same column — e.g. "My portfilio FI" in one row with the number immediately beneath it; or
+  (c) at the top of a column of values, as a column header.
+Work out which applies for each figure before reading it. State the label you used in "portfolioLabel" / "benchmarkLabel" so the reading can be checked.
+
 For the EQUITY comparison, find:
 - The benchmark's name (usually "S&P 500" or "SPX")
-- The benchmark's cumulative return over the tracked period, as a percentage (look for a running "Cum %" column or a labeled summary figure like "SPX Index — same window"; if there's a daily running series, use the LAST/most complete value, representing the full period's return)
-- The portfolio's own cumulative equity return over the SAME period (often labeled something like "Equity Cum. %", "My portfolio equities", "My Equity — since inception", "Equity Cum % (CF-adj)")
+- The benchmark's cumulative return over the tracked period (look for a running "Cum %" column or a labelled summary figure; if there is a daily running series, use the LAST populated value, representing the full period)
+- The portfolio's own cumulative equity return over the SAME period
 - If explicitly present: the benchmark's and portfolio's annualized volatility and Sharpe ratio — leave null if not present, do not estimate these yourself
 - The benchmark's own price/date time series if given (e.g. daily closes) — report up to 30 evenly-sampled points as {date, value}; if the series is short, report all of it
 
@@ -218,17 +230,38 @@ Find the same set of fields for the FIXED INCOME comparison, where the benchmark
 
 Also report the tracked period's start and end date if stated anywhere (e.g. a "Start Date"/"End Date" cell, or the first/last date in a series).
 
-Report all percentages as numbers out of 100 (e.g. 2.6 for 2.6%), even if the sheet stores them as decimals like 0.026.
+DO NOT convert, rescale or round any percentage. Copy the number through EXACTLY as it appears in the cell — if the cell holds -0.0301, return -0.0301, not -3.01. Scaling is handled downstream, and doing it here risks rescaling one side but not the other, which silently inverts the comparison. The same applies to volatility figures. Report Sharpe ratios as they appear.
 
 If you cannot find any equity or fixed-income benchmark comparison data at all in what's given, set "found" to false and leave everything else null or empty — do not invent or estimate any figure that isn't actually present.
 
 Respond with ONLY strict JSON, no markdown fences, no text outside the JSON, in exactly this shape:
-{"found":boolean,"sheetUsed":string|null,"periodStart":string|null,"periodEnd":string|null,"equity":{"benchmarkName":string|null,"benchmarkReturnPct":number|null,"portfolioReturnPct":number|null,"benchmarkVolPct":number|null,"portfolioVolPct":number|null,"benchmarkSharpe":number|null,"portfolioSharpe":number|null,"benchmarkSeries":[{"date":string,"value":number}]},"fixedIncome":{"benchmarkName":string|null,"benchmarkReturnPct":number|null,"portfolioReturnPct":number|null,"benchmarkVolPct":number|null,"portfolioVolPct":number|null,"benchmarkSharpe":number|null,"portfolioSharpe":number|null,"benchmarkSeries":[{"date":string,"value":number}]}}
+{"found":boolean,"sheetUsed":string|null,"periodStart":string|null,"periodEnd":string|null,"equity":{"benchmarkName":string|null,"portfolioLabel":string|null,"benchmarkLabel":string|null,"benchmarkReturnRaw":number|null,"portfolioReturnRaw":number|null,"benchmarkVolRaw":number|null,"portfolioVolRaw":number|null,"benchmarkSharpe":number|null,"portfolioSharpe":number|null,"benchmarkSeries":[{"date":string,"value":number}]},"fixedIncome":{"benchmarkName":string|null,"portfolioLabel":string|null,"benchmarkLabel":string|null,"benchmarkReturnRaw":number|null,"portfolioReturnRaw":number|null,"benchmarkVolRaw":number|null,"portfolioVolRaw":number|null,"benchmarkSharpe":number|null,"portfolioSharpe":number|null,"benchmarkSeries":[{"date":string,"value":number}]}}
 
 Sheets:
 ${sheetBlocks}`;
 
-  let parsed: BenchmarkComparison | null = null;
+  interface RawSide {
+    benchmarkName: string | null;
+    portfolioLabel: string | null;
+    benchmarkLabel: string | null;
+    benchmarkReturnRaw: number | null;
+    portfolioReturnRaw: number | null;
+    benchmarkVolRaw: number | null;
+    portfolioVolRaw: number | null;
+    benchmarkSharpe: number | null;
+    portfolioSharpe: number | null;
+    benchmarkSeries: BenchmarkSeriesPoint[];
+  }
+  interface RawComparison {
+    found: boolean;
+    sheetUsed: string | null;
+    periodStart: string | null;
+    periodEnd: string | null;
+    equity: RawSide;
+    fixedIncome: RawSide;
+  }
+
+  let parsed: RawComparison | null = null;
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let raw: string;
@@ -238,13 +271,50 @@ ${sheetBlocks}`;
       if (attempt === maxAttempts - 1) throw e;
       continue;
     }
-    const candidate = parseJsonLoosely<BenchmarkComparison>(raw);
+    const candidate = parseJsonLoosely<RawComparison>(raw);
     if (candidate && typeof candidate.found === 'boolean') { parsed = candidate; break; }
   }
   if (!parsed) {
     throw new Error(`The AI reader couldn't produce usable output after ${maxAttempts} attempts. Try again — if it keeps happening, the sheet may have unusual formatting worth a closer look.`);
   }
-  return parsed;
+
+  // These sheets store returns as decimal fractions (-0.0301 meaning -3.01%),
+  // but some hand-entered cells already hold whole percents. Scaling here — on
+  // both sides with the identical rule — guarantees the two are on the same
+  // footing, which is what stops a gain being rendered as a loss. A |value| of
+  // 1 or more can only sensibly be a whole percent: a 1.0 decimal fraction
+  // would be a 100% move over a few weeks.
+  const toPct = (v: number | null | undefined): number | null => {
+    if (v === null || v === undefined || !Number.isFinite(Number(v))) return null;
+    const n = Number(v);
+    return Math.abs(n) < 1 ? n * 100 : n;
+  };
+  const rawOrNull = (v: number | null | undefined): number | null =>
+    v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+
+  const side = (s: RawSide | undefined): BenchmarkSideData => ({
+    benchmarkName: s?.benchmarkName ?? null,
+    benchmarkReturnPct: toPct(s?.benchmarkReturnRaw),
+    portfolioReturnPct: toPct(s?.portfolioReturnRaw),
+    benchmarkVolPct: toPct(s?.benchmarkVolRaw),
+    portfolioVolPct: toPct(s?.portfolioVolRaw),
+    benchmarkSharpe: rawOrNull(s?.benchmarkSharpe),
+    portfolioSharpe: rawOrNull(s?.portfolioSharpe),
+    benchmarkSeries: Array.isArray(s?.benchmarkSeries) ? s!.benchmarkSeries : [],
+    portfolioLabel: s?.portfolioLabel ?? null,
+    benchmarkLabel: s?.benchmarkLabel ?? null,
+    portfolioReturnRaw: rawOrNull(s?.portfolioReturnRaw),
+    benchmarkReturnRaw: rawOrNull(s?.benchmarkReturnRaw),
+  });
+
+  return {
+    found: !!parsed.found,
+    sheetUsed: parsed.sheetUsed ?? null,
+    periodStart: parsed.periodStart ?? null,
+    periodEnd: parsed.periodEnd ?? null,
+    equity: side(parsed.equity),
+    fixedIncome: side(parsed.fixedIncome),
+  };
 }
 
 /**

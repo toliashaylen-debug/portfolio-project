@@ -4,10 +4,16 @@ import { PORTFOLIO_IDS, PORTFOLIO_SOURCING } from '../lib/constants';
 import { fmtMoney, fmtPct, todayStr, cleanProse } from '../lib/format';
 import { callClaude } from '../lib/ai';
 import { safeGet, safeSet, onKeyChange } from '../lib/storage';
-import { loadDailyPnl, refreshDailyPnl, dailyPnlKey, latestPoint, sourceSheetsFor } from '../lib/dailyPnl';
+import { loadDailyPnl, refreshDailyPnl, dailyPnlKey, latestPoint, sourceSheetsFor, summarize, deskTotals } from '../lib/dailyPnl';
 import DailyPnlBars from '../components/DailyPnlBars';
 import type { PnlBarRow } from '../components/DailyPnlBars';
 import CumulativePnlChart from '../components/CumulativePnlChart';
+import DailyPnlColumns from '../components/DailyPnlColumns';
+import PnlStatTiles from '../components/PnlStatTiles';
+import WinLossSplit from '../components/WinLossSplit';
+import DeskTotalChart from '../components/DeskTotalChart';
+
+const BOOK_COLORS = ['#0E2C4F', '#B4924C', '#17784C'];
 
 interface CommentaryEntry {
   date: string;
@@ -31,6 +37,7 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
   const [pnlErrors, setPnlErrors] = useState<ErrMap>({});
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNote, setRefreshNote] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -89,6 +96,7 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
     };
   });
 
+  const bookSeries = PORTFOLIO_IDS.map((id) => ({ name: configs[id].name.replace(/'s Portfolio$/i, ''), data: pnl[id] || null }));
   const anyPnl = rows.some((r) => r.pnl !== null);
   const anyHistory = PORTFOLIO_IDS.some((id) => (histories[id] || []).length);
   const latestDate = rows.map((r) => r.date).filter(Boolean).sort().pop() || null;
@@ -162,18 +170,50 @@ ${lines}`;
       </div>
 
       {anyPnl ? (
-        <div className="desk-panel">
-          <h3>Cumulative P&amp;L <span className="unit">(running total by book)</span></h3>
-          <CumulativePnlChart series={PORTFOLIO_IDS.map((id) => ({ name: configs[id].name.replace(/'s Portfolio$/i, ''), data: pnl[id] || null }))} />
-          {PORTFOLIO_IDS.map((id) => {
-            const s = pnl[id];
-            return s?.method ? (
-              <div className="desk-note" key={id} style={{ marginTop: '4px' }}>
-                <strong>{configs[id].name}</strong> — {s.sheetUsed ? `"${s.sheetUsed}": ` : ''}{s.method}
-              </div>
-            ) : null;
-          })}
-        </div>
+        <>
+          <div className="desk-panel">
+            <h3>By book</h3>
+            <PnlStatTiles
+              tiles={PORTFOLIO_IDS.map((id, i) => ({
+                name: configs[id].name.replace(/'s Portfolio$/i, ''),
+                summary: summarize(pnl[id] || null),
+                color: BOOK_COLORS[i % BOOK_COLORS.length],
+              }))}
+            />
+          </div>
+
+          <div className="desk-panel">
+            <h3>Cumulative P&amp;L <span className="unit">(running total by book)</span></h3>
+            <CumulativePnlChart series={bookSeries} />
+          </div>
+
+          <div className="desk-panel">
+            <h3>Session P&amp;L <span className="unit">(each trading day, by book)</span></h3>
+            <DailyPnlColumns series={bookSeries} />
+          </div>
+
+          <div className="desk-panel">
+            <h3>Desk total <span className="unit">(all books combined, per session)</span></h3>
+            <DeskTotalChart points={deskTotals(PORTFOLIO_IDS.map((id) => pnl[id] || null))} />
+          </div>
+
+          <div className="desk-panel">
+            <h3>Winning vs losing sessions</h3>
+            <WinLossSplit rows={PORTFOLIO_IDS.map((id) => ({ name: configs[id].name.replace(/'s Portfolio$/i, ''), summary: summarize(pnl[id] || null) }))} />
+          </div>
+
+          <div className="desk-panel">
+            <h3>Where the figures come from</h3>
+            {PORTFOLIO_IDS.map((id) => {
+              const s = pnl[id];
+              return s?.method ? (
+                <div className="desk-note" key={id} style={{ marginTop: '4px' }}>
+                  <strong>{configs[id].name}</strong> — {s.sheetUsed ? `"${s.sheetUsed}": ` : ''}{s.method}
+                </div>
+              ) : null;
+            })}
+          </div>
+        </>
       ) : null}
 
       <div className="desk-panel">
@@ -190,12 +230,34 @@ ${lines}`;
         ) : log.length === 0 ? (
           <div className="desk-note" style={{ marginTop: 0 }}>No note written yet. Two or three sentences, no more — the charts carry the rest.</div>
         ) : (
-          log.map((entry, i) => (
-            <div className="desk-commentary-entry" key={i}>
-              <div className="desk-commentary-date">{entry.date}</div>
-              <div className="desk-commentary-text">{entry.text}</div>
+          <>
+            {/* Only the latest note is shown. Older entries — including the long
+                ones written before this page became chart-led — sit behind the
+                toggle rather than filling the page with prose. */}
+            <div className="desk-commentary-entry">
+              <div className="desk-commentary-date">{log[0].date}</div>
+              <div className="desk-commentary-text">{log[0].text}</div>
             </div>
-          ))
+            {log.length > 1 ? (
+              <>
+                <button
+                  className="desk-btn ghost"
+                  style={{ marginTop: 'var(--sp-4)', padding: '5px 12px', fontSize: '12px' }}
+                  onClick={() => setShowHistory((v) => !v)}
+                >
+                  {showHistory ? 'Hide earlier notes' : `Earlier notes (${log.length - 1})`}
+                </button>
+                {showHistory
+                  ? log.slice(1).map((entry, i) => (
+                      <div className="desk-commentary-entry" key={i}>
+                        <div className="desk-commentary-date">{entry.date}</div>
+                        <div className="desk-commentary-text">{entry.text}</div>
+                      </div>
+                    ))
+                  : null}
+              </>
+            ) : null}
+          </>
         )}
       </div>
     </div>

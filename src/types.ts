@@ -269,6 +269,12 @@ export interface BenchmarkSideData {
   benchmarkSharpe: number | null;
   portfolioSharpe: number | null;
   benchmarkSeries: BenchmarkSeriesPoint[];
+  /** Sheet label each return was read from, so a misread cell is visible. */
+  portfolioLabel?: string | null;
+  benchmarkLabel?: string | null;
+  /** The cell values exactly as they appear, before any scaling. */
+  portfolioReturnRaw?: number | null;
+  benchmarkReturnRaw?: number | null;
 }
 
 export interface BenchmarkComparison {
