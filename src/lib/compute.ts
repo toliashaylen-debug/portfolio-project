@@ -84,7 +84,7 @@ export function portfolioMetrics(history: History): PortfolioMetrics | null {
   return { positions, totalValue, totalCost, totalPL, dayChangeDollar, dayChangePct, lastDate, hasHistory: history.length > 1, reported, displayValue, positionsSumDiffers };
 }
 
-function riskLevel(val: number, low: number, high: number): RiskLevel {
+export function riskLevel(val: number, low: number, high: number): RiskLevel {
   return val < low ? 'low' : val < high ? 'moderate' : 'high';
 }
 

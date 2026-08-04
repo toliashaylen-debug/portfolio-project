@@ -1,15 +1,16 @@
 import type { Position, ReportedSummary, WeightMode } from '../types';
-import { computeBreakdown, reportedSleeveSegments, withSectorColors, flagPosition } from '../lib/compute';
+import { computeBreakdown, reportedSleeveSegments, withSectorColors, flagPosition, riskLevel } from '../lib/compute';
 import { fmtMoney, cleanProse } from '../lib/format';
 import RiskBadge from './RiskBadge';
 import DonutChart from './DonutChart';
 import WeightBars from './WeightBars';
 
-export default function CompositionPanel({ positions, themes, reported, weightMode }: {
+export default function CompositionPanel({ positions, themes, reported, weightMode, preferReportedSectorWeights }: {
   positions: Position[];
   themes: string | null | undefined;
   reported: ReportedSummary | null | undefined;
   weightMode: WeightMode;
+  preferReportedSectorWeights?: boolean;
 }) {
   let b;
   let computeError: string | null = null;
@@ -32,9 +33,16 @@ export default function CompositionPanel({ positions, themes, reported, weightMo
   const reportedSegs = reportedSleeveSegments(reported);
   const sleeveSegments = reportedSegs || b.sleeveSegments;
   const displayValue = reported && reported.totalValue !== null && reported.totalValue !== undefined ? reported.totalValue : b.totalValue;
-  const sectorDonutSegments = withSectorColors(b.sectorWeights).slice(0, 8);
+  // A sheet-reported sector breakdown is only substituted in when the portfolio
+  // is configured to prefer it and one was actually found — otherwise this is
+  // identical to the summed-from-positions breakdown as before.
+  const useReportedSectors = !!(preferReportedSectorWeights && reported?.sectorWeights && reported.sectorWeights.length);
+  const sectorWeights = useReportedSectors ? reported!.sectorWeights! : b.sectorWeights;
+  const maxSectorPct = sectorWeights[0] ? sectorWeights[0].pct : 0;
+  const sectorLevel = useReportedSectors ? riskLevel(maxSectorPct, 25, 45) : b.risk.sectorLevel;
+  const sectorDonutSegments = withSectorColors(sectorWeights).slice(0, 8);
   const hasDuration = b.risk.weightedDuration !== null;
-  const sectorLevelColor = b.risk.sectorLevel === 'high' ? 'var(--neg)' : b.risk.sectorLevel === 'moderate' ? 'var(--accent)' : 'var(--pos)';
+  const sectorLevelColor = sectorLevel === 'high' ? 'var(--neg)' : sectorLevel === 'moderate' ? 'var(--accent)' : 'var(--pos)';
   const reconciles = !!(reported && reported.totalValue !== null && reported.totalValue !== undefined && Math.abs(reported.totalValue - b.totalValue) / b.totalValue > 0.02);
   const flaggedPositions = positions.filter((p) => flagPosition(p));
 
@@ -92,13 +100,14 @@ export default function CompositionPanel({ positions, themes, reported, weightMo
             <div style={{ display: 'flex', gap: 'var(--sp-5)', flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <DonutChart segments={sectorDonutSegments} size={110} />
               <div style={{ flex: 1, minWidth: '180px' }}>
-                <WeightBars items={b.sectorWeights} />
+                <WeightBars items={sectorWeights} />
               </div>
             </div>
+            {useReportedSectors ? <div className="desk-note" style={{ marginTop: 'var(--sp-2)' }}>As reported in "{reported!.sectorWeightsSheet}"</div> : null}
             <div className="desk-mini-row">
               <span>Largest sector</span>
               <span className="mono" style={{ color: sectorLevelColor }}>
-                {b.sectorWeights[0] ? b.sectorWeights[0].label + ' ' + b.risk.maxSectorPct.toFixed(1) + '%' : '—'}
+                {sectorWeights[0] ? sectorWeights[0].label + ' ' + maxSectorPct.toFixed(1) + '%' : '—'}
               </span>
             </div>
           </div>

@@ -143,8 +143,8 @@ ${lines}`;
     <div>
       <h2 className="display">Daily commentary</h2>
       <div className="desk-sub">
-        Daily P&amp;L compared across the three books, read strictly from each portfolio's designated source sheet —
-        Shaylen from "Daily Performance", Antonio from "Benchmark", Israel from his single sheet.
+        Daily P&amp;L compared across the three books, read strictly from each portfolio's designated source sheet(s) —
+        Shaylen from "Daily Performance", Antonio from "Benchmark", Israel from {sourceLabel('p3')}.
       </div>
 
       <div className="desk-panel">

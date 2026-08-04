@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, History, PortfolioId } from '../types';
+import type { ConfigsById, Histories, History, PortfolioId, RawSheetsBundle } from '../types';
 import { PORTFOLIO_SOURCING } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
-import { fmtMoney, fmtPct } from '../lib/format';
+import { fmtMoney, fmtPct, sheetAllowed } from '../lib/format';
 import { callClaude } from '../lib/ai';
+import { safeGet } from '../lib/storage';
+import { gridToTSV } from '../lib/workbook';
 import CompositionPanel from '../components/CompositionPanel';
 import PositionsTable from '../components/PositionsTable';
 import RawSheetViewer from '../components/RawSheetViewer';
@@ -41,7 +43,27 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
     try {
       const latest = currentHistory[currentHistory.length - 1];
       const holdingsList = latest.positions.map((p) => p.ticker + (p.sector ? ' (' + p.sector + ')' : '') + ': ' + p.shares + ' sh').join(', ');
-      const prompt = `Here are the holdings of an investment portfolio: ${holdingsList}. In one short sentence (under 20 words), describe the investment strategy or style this portfolio reflects (e.g. barbell, growth, value, income, sector-concentrated). Respond with only the sentence, no preamble.`;
+
+      // Some portfolios also permit the trade-by-trade log (thesis/rationale
+      // text) as extra context for this suggestion — everyone else keeps the
+      // holdings-only prompt used before this existed.
+      let extraContext = '';
+      const contextSheets = PORTFOLIO_SOURCING[id]?.strategyContextSheets;
+      if (contextSheets) {
+        try {
+          const raw = await safeGet('raw-' + id);
+          if (raw) {
+            const bundle: RawSheetsBundle = JSON.parse(raw);
+            const allowed = (bundle.sheets || []).filter((s) => sheetAllowed(s.sheetName, contextSheets));
+            if (allowed.length) {
+              extraContext = '\n\nAdditional source material (use only what is factually relevant, do not invent beyond it):\n' +
+                allowed.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid.slice(0, 60))}\n</sheet>`).join('\n\n');
+            }
+          }
+        } catch { /* extra context is optional — fall back to holdings only */ }
+      }
+
+      const prompt = `Here are the holdings of an investment portfolio: ${holdingsList}.${extraContext}\n\nIn one short sentence (under 20 words), describe the investment strategy or style this portfolio reflects (e.g. barbell, growth, value, income, sector-concentrated). Respond with only the sentence, no preamble.`;
       const text = await callClaude(prompt, 100);
       setStrategyDraft(text.replace(/^"|"$/g, ''));
     } catch (err) {
@@ -79,7 +101,13 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
       <div>
         <div className="desk-sub">{m ? 'Last snapshot: ' + m.lastDate : 'No snapshots yet'}</div>
         {latest ? (
-          <CompositionPanel positions={latest.positions} themes={latest.themes} reported={latest.reported} weightMode={weightMode} />
+          <CompositionPanel
+            positions={latest.positions}
+            themes={latest.themes}
+            reported={latest.reported}
+            weightMode={weightMode}
+            preferReportedSectorWeights={!!PORTFOLIO_SOURCING[id]?.preferReportedSectorWeights}
+          />
         ) : null}
         {m ? (
           <div className="desk-grid3">

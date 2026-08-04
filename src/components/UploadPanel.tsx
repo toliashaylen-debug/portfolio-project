@@ -31,7 +31,7 @@ export default function UploadPanel({ portfolioId, onSaved }: { portfolioId: Por
     setError(''); setOk(''); setBusy(true); setBusyLabel('Reading the workbook…');
     setCandidates(null); setReportedSummary(null); setRawSheets(null);
     try {
-      const result = await readWorkbook(file);
+      const result = await readWorkbook(file, sourcing);
       const { positionSheets, reportedSummary: reported, rawSheets: raw } = result;
       const restricted = sourcing && sourcing.positionsSheets
         ? positionSheets.filter((c) => sheetAllowed(c.sheetName, sourcing.positionsSheets))

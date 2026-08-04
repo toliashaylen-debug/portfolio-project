@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
-import type { RawSheet, SummarySheet, ReportedSummary, ReadWorkbookResult, PositionSheetCandidate } from '../types';
+import type { RawSheet, SummarySheet, ReportedSummary, ReadWorkbookResult, PositionSheetCandidate, PortfolioSourcing } from '../types';
 import { extractHoldingsViaAI } from './ai';
+import { sheetAllowed } from './format';
 
 export function trimGrid(aoa: (string | number | null)[][]): (string | number | null)[][] {
   let rows = aoa.filter((r) => r && r.some((c) => c !== null && c !== undefined && c !== ''));
@@ -74,12 +75,16 @@ function buildReportedSummary(summarySheets: SummarySheet[]): ReportedSummary | 
     }
   }
 
-  if (!totalValueBest && equityWeightPct === null && fixedIncomeWeightPct === null) return null;
+  const sectorBest = summarySheets.find((s) => s.sectorWeights && s.sectorWeights.length) || null;
+
+  if (!totalValueBest && equityWeightPct === null && fixedIncomeWeightPct === null && !sectorBest) return null;
   return {
     totalValue: totalValueBest ? totalValueBest.totalValue : null,
     totalValueAsOf: totalValueBest ? totalValueBest.asOfDate : null,
     totalValueSheet: totalValueBest ? totalValueBest.sheetName : null,
     equityWeightPct, fixedIncomeWeightPct, weightsSheet,
+    sectorWeights: sectorBest ? sectorBest.sectorWeights : null,
+    sectorWeightsSheet: sectorBest ? sectorBest.sheetName : null,
   };
 }
 
@@ -98,13 +103,15 @@ function backfillSectors(positionSheets: PositionSheetCandidate[]): PositionShee
   }));
 }
 
-export async function readWorkbook(file: File): Promise<ReadWorkbookResult> {
+export async function readWorkbook(file: File, sourcing?: PortfolioSourcing | null): Promise<ReadWorkbookResult> {
   const rawSheets = await readWorkbookSheets(file);
   const { positionSheets, summarySheets } = await extractHoldingsViaAI(rawSheets);
   if (!positionSheets.length) throw new Error('The AI reader could not find any holdings in this file.');
+  const allowedSummary = sourcing?.summarySheets;
+  const restrictedSummary = allowedSummary ? summarySheets.filter((s) => sheetAllowed(s.sheetName, allowedSummary)) : summarySheets;
   return {
     positionSheets: backfillSectors(positionSheets),
-    reportedSummary: buildReportedSummary(summarySheets),
+    reportedSummary: buildReportedSummary(restrictedSummary),
     rawSheets,
   };
 }

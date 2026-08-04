@@ -103,6 +103,7 @@ interface RawSummarySheet {
   fixedIncomeValue: number | null;
   equityWeightPct: number | null;
   fixedIncomeWeightPct: number | null;
+  sectorWeights: { label: string; pct: number }[] | null;
 }
 interface ExtractionResponse {
   sheets: RawSheetResult[];
@@ -136,12 +137,13 @@ If a row already has its own unrealized profit/loss figure explicitly given in d
 PART 2 — portfolio-level summaries. Separately, some sheets track the overall portfolio rather than individual holdings — e.g. a dated daily/live log of ending balance and equity/fixed-income market values, or a sheet stating the current equity vs. fixed-income allocation weight directly. These are usually more authoritative for the current total value and allocation than summing individual position rows, since position rows can go stale after trades. Find any such sheet and report:
 - If it's a dated log (a date column paired with figures per row, e.g. a "CURRENT (LIVE)" row or a daily log): find the row with the LATEST real date where the actual balance/value figure itself is genuinely populated — skip any row where that figure is blank, even if an adjacent column (like a percentage change) has some other value in it (a formula error like #DIV/0!, or a bare placeholder like -1, 0, or N/A) — a populated adjacent column doesn't mean the row itself has real data. From that row, report "asOfDate" and whichever of these it states: "totalValue" (an overall ending balance/NAV figure), and/or "equityValue"/"fixedIncomeValue" (the market value held in each sleeve, in dollars — e.g. a column literally called "Equity Market Value" or "Fixed Income Market Value").
 - If it states current equity/fixed-income weights directly as percentages or decimals (e.g. 0.48), report them as "equityWeightPct" and "fixedIncomeWeightPct" (as numbers out of 100, e.g. 48.05 not 0.4805) instead of equityValue/fixedIncomeValue. These sheets are often not dated — if there's no date, leave "asOfDate" null.
+- If the same sheet also has a separate table breaking the EQUITY sleeve down by sector with its own weight/percentage column (e.g. titled "Sector Breakdown — Equity" or similar), report each sector's name and weight as "sectorWeights": [{"label": sector name exactly as written, "pct": weight as a number out of 100, e.g. 18.4 not 0.184}]. Only include rows that have an actual populated weight value — skip rows showing "-", blank, 0 with no other data, or a formula error. Leave "sectorWeights" null if no such table exists in the sheet.
 Only report fields you actually find written in the sheet; leave others null. Do not calculate, sum, or infer any of these numbers yourself from the holdings — only report values that are explicitly already present in a summary/log sheet.
 
 Respond with ONLY strict JSON, no markdown fences, no text outside the JSON, in exactly this shape:
-{"sheets":[{"sheetName":string,"isPositionsSheet":boolean,"holdings":[{"ticker":string,"name":string|null,"shares":number,"costBasis":number|null,"price":number,"sector":string|null,"assetType":"equity"|"etf"|"bond"|"other","sleeve":"equity"|"fixedIncome"|"other","durationYears":number|null,"section":string|null,"reportedWeightPct":number|null,"positionMarketValue":number|null,"reportedUnrealizedPL":number|null}]}],"summarySheets":[{"sheetName":string,"asOfDate":string|null,"totalValue":number|null,"equityValue":number|null,"fixedIncomeValue":number|null,"equityWeightPct":number|null,"fixedIncomeWeightPct":number|null}]}
+{"sheets":[{"sheetName":string,"isPositionsSheet":boolean,"holdings":[{"ticker":string,"name":string|null,"shares":number,"costBasis":number|null,"price":number,"sector":string|null,"assetType":"equity"|"etf"|"bond"|"other","sleeve":"equity"|"fixedIncome"|"other","durationYears":number|null,"section":string|null,"reportedWeightPct":number|null,"positionMarketValue":number|null,"reportedUnrealizedPL":number|null}]}],"summarySheets":[{"sheetName":string,"asOfDate":string|null,"totalValue":number|null,"equityValue":number|null,"fixedIncomeValue":number|null,"equityWeightPct":number|null,"fixedIncomeWeightPct":number|null,"sectorWeights":[{"label":string,"pct":number}]|null}]}
 
-Only include a sheet in "sheets" if isPositionsSheet is true or it has at least one holding. Only include a sheet in "summarySheets" if you found at least one of totalValue/equityValue/fixedIncomeValue/equityWeightPct/fixedIncomeWeightPct in it.
+Only include a sheet in "sheets" if isPositionsSheet is true or it has at least one holding. Only include a sheet in "summarySheets" if you found at least one of totalValue/equityValue/fixedIncomeValue/equityWeightPct/fixedIncomeWeightPct/sectorWeights in it.
 
 Sheets:
 ${sheetBlocks}`;
@@ -198,6 +200,11 @@ ${sheetBlocks}`;
     fixedIncomeValue: s.fixedIncomeValue === null || s.fixedIncomeValue === undefined ? null : Number(s.fixedIncomeValue),
     equityWeightPct: s.equityWeightPct === null || s.equityWeightPct === undefined ? null : Number(s.equityWeightPct),
     fixedIncomeWeightPct: s.fixedIncomeWeightPct === null || s.fixedIncomeWeightPct === undefined ? null : Number(s.fixedIncomeWeightPct),
+    sectorWeights: Array.isArray(s.sectorWeights) && s.sectorWeights.length
+      ? s.sectorWeights
+          .filter((sw) => sw && sw.label && typeof sw.pct === 'number' && !isNaN(sw.pct))
+          .map((sw) => ({ label: String(sw.label), pct: Number(sw.pct) }))
+      : null,
   }));
 
   return { positionSheets, summarySheets };

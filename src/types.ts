@@ -35,6 +35,9 @@ export interface ReportedSummary {
   equityWeightPct: number | null;
   fixedIncomeWeightPct: number | null;
   weightsSheet: string | null;
+  /** Equity-sleeve sector weights, when a sheet reports them directly rather than them being summed from positions. */
+  sectorWeights: SectorWeight[] | null;
+  sectorWeightsSheet: string | null;
 }
 
 export interface Snapshot {
@@ -85,6 +88,7 @@ export interface SummarySheet {
   fixedIncomeValue: number | null;
   equityWeightPct: number | null;
   fixedIncomeWeightPct: number | null;
+  sectorWeights: SectorWeight[] | null;
 }
 
 export interface ReadWorkbookResult {
@@ -155,6 +159,12 @@ export interface PortfolioSourcing {
   benchmarkSheets: string[];
   /** Sheet(s) daily P&L may be read from — nothing else counts as a source. */
   dailyPnlSheets: string[];
+  /** Restricts which sheets may contribute the reported total value / equity-FI weight summary. Unrestricted (any sheet) when omitted. */
+  summarySheets?: string[] | null;
+  /** When true, prefer a sheet-reported equity-sector breakdown over one summed from position rows, if one was found. */
+  preferReportedSectorWeights?: boolean;
+  /** Extra raw sheet content fed to the AI when suggesting a strategy label — omitted portfolios keep the ticker/sector-only prompt. */
+  strategyContextSheets?: string[] | null;
 }
 
 export interface DailyPnlPoint {

@@ -23,7 +23,30 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     // split there into separate equity and fixed income blocks.
     dailyPnlSheets: ['benchmark'],
   },
-  p3: null,
+  p3: {
+    // Positions table, snapshot, overview, desk view and common positions all
+    // draw their holdings from these two sheets and nowhere else.
+    positionsSheets: ['equity - active', 'fi - active'],
+    weightMode: 'value',
+    readSheets: ['cover & returns', 'equity - active', 'fi - active', 'equity - log', 'fi - log', 'income & calendar'],
+    strategySheets: ['equity - log', 'equity - active', 'fi - log', 'fi - active'],
+    // The strategy label is suggested from the trade log's own thesis/rationale
+    // text plus current holdings — nothing outside these four sheets.
+    strategyContextSheets: ['equity - log', 'equity - active', 'fi - log', 'fi - active'],
+    // Equity vs. S&P 500 and fixed income vs. LQD, read only from the summary
+    // page's own benchmark table.
+    benchmarkSheets: ['Cover & Returns'],
+    // No dated daily log exists for this book — restricting the search to
+    // these three pages means the desk honestly reports "not found" rather
+    // than inventing a trend from elsewhere.
+    dailyPnlSheets: ['Cover & Returns', 'Equity - Active', 'FI - Active'],
+    // Total value and the equity/fixed-income split come only from the summary
+    // page's own reported figures, never summed from position rows.
+    summarySheets: ['cover & returns'],
+    // Equity sector weights come from the "Sector Breakdown — Equity (live)"
+    // table on the summary page, not summed from position rows.
+    preferReportedSectorWeights: true,
+  },
 };
 
 export const SLEEVE_COLORS: Record<Sleeve, string> = { equity: '#144B87', fixedIncome: '#1E8E5A', other: '#8996AC' };
