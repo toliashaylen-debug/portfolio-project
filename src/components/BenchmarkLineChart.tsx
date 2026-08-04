@@ -1,6 +1,7 @@
 import { Line } from 'react-chartjs-2';
 import type { ChartOptions, TooltipItem } from 'chart.js';
 import type { BenchmarkSeriesPoint } from '../types';
+import { CHART } from '../lib/chartTheme';
 
 export default function BenchmarkLineChart({ series, color, label }: { series: BenchmarkSeriesPoint[]; color: string; label: string }) {
   const data = {
@@ -15,8 +16,8 @@ export default function BenchmarkLineChart({ series, color, label }: { series: B
       tooltip: { callbacks: { label: (ctx: TooltipItem<'line'>) => label + ': ' + Number(ctx.parsed.y).toLocaleString() } },
     },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#55647D', font: { size: 10 }, maxTicksLimit: 6 } },
-      y: { grid: { color: '#D9E1EA' }, ticks: { color: '#55647D', font: { size: 11 } } },
+      x: { grid: { display: false }, ticks: { color: CHART.tick, font: { size: 10 }, maxTicksLimit: 6 } },
+      y: { grid: { color: CHART.grid }, ticks: { color: CHART.tick, font: { size: 11 } } },
     },
   };
   return (

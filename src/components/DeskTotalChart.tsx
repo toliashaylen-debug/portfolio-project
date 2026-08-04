@@ -1,6 +1,7 @@
 import { Bar } from 'react-chartjs-2';
 import type { ChartOptions, TooltipItem } from 'chart.js';
 import { fmtMoney } from '../lib/format';
+import { CHART } from '../lib/chartTheme';
 
 /** Desk-wide P&L per session, coloured by direction — the whole book at a glance. */
 export default function DeskTotalChart({ points }: { points: { date: string; pnl: number }[] }) {
@@ -18,11 +19,11 @@ export default function DeskTotalChart({ points }: { points: { date: string; pnl
       },
     },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#8A94A6', font: { size: 10 }, maxTicksLimit: 8 } },
+      x: { grid: { display: false }, ticks: { color: CHART.tick, font: { size: 10 }, maxTicksLimit: 8 } },
       y: {
-        grid: { color: '#EDF0F4' },
+        grid: { color: CHART.grid },
         ticks: {
-          color: '#8A94A6',
+          color: CHART.tick,
           font: { size: 10 },
           callback: (v) => (Number(v) >= 0 ? '+' : '') + '$' + Math.round(Number(v) / 1000) + 'k',
         },
@@ -38,7 +39,7 @@ export default function DeskTotalChart({ points }: { points: { date: string; pnl
           datasets: [{
             label: 'Desk',
             data: points.map((p) => p.pnl),
-            backgroundColor: points.map((p) => (p.pnl >= 0 ? '#17784C' : '#B32B39')),
+            backgroundColor: points.map((p) => (p.pnl >= 0 ? CHART.pos : CHART.neg)),
             borderWidth: 0,
             borderRadius: 2,
           }],

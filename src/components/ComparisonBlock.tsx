@@ -1,6 +1,7 @@
 import type { BenchmarkSideData } from '../types';
 import RiskBadge from './RiskBadge';
 import BenchmarkLineChart from './BenchmarkLineChart';
+import { CHART } from '../lib/chartTheme';
 
 export default function ComparisonBlock({ title, data, sleeveLabel }: { title: string; data: BenchmarkSideData | null | undefined; sleeveLabel: string }) {
   if (!data || (data.benchmarkReturnPct === null && data.portfolioReturnPct === null)) {
@@ -41,7 +42,7 @@ export default function ComparisonBlock({ title, data, sleeveLabel }: { title: s
         </div>
       ) : null}
       {data.benchmarkSeries && data.benchmarkSeries.length > 1 ? (
-        <BenchmarkLineChart series={data.benchmarkSeries} color="#144B87" label={data.benchmarkName || 'Benchmark'} />
+        <BenchmarkLineChart series={data.benchmarkSeries} color={CHART.benchmark} label={data.benchmarkName || 'Benchmark'} />
       ) : null}
       {(data.portfolioLabel || data.benchmarkLabel) ? (
         <div className="desk-note" style={{ marginTop: 'var(--sp-4)', borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--sp-3)' }}>

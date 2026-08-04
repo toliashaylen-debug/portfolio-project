@@ -2,9 +2,10 @@ import { Line } from 'react-chartjs-2';
 import type { ChartOptions, TooltipItem } from 'chart.js';
 import type { DailyPnlSeries } from '../types';
 import { fmtMoney } from '../lib/format';
+import { CHART } from '../lib/chartTheme';
 import { cumulative, unionDates } from '../lib/dailyPnl';
 
-const SERIES_COLORS = ['#0E2C4F', '#B4924C', '#17784C'];
+const SERIES_COLORS = CHART.series;
 
 /**
  * Cumulative P&L per book on a shared axis, each with a dashed "average pace"
@@ -71,7 +72,7 @@ export default function CumulativePnlChart({ series }: { series: { name: string;
       legend: {
         display: true,
         position: 'bottom',
-        labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'line', font: { size: 11 }, color: '#56637A' },
+        labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'line', font: { size: 11 }, color: CHART.legend },
       },
       tooltip: {
         callbacks: {
@@ -81,11 +82,11 @@ export default function CumulativePnlChart({ series }: { series: { name: string;
       },
     },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#8A94A6', font: { size: 10 }, maxTicksLimit: 8 } },
+      x: { grid: { display: false }, ticks: { color: CHART.tick, font: { size: 10 }, maxTicksLimit: 8 } },
       y: {
-        grid: { color: '#EDF0F4' },
+        grid: { color: CHART.grid },
         ticks: {
-          color: '#8A94A6',
+          color: CHART.tick,
           font: { size: 10 },
           callback: (v) => (Number(v) >= 0 ? '+' : '') + '$' + Math.round(Number(v) / 1000) + 'k',
         },
