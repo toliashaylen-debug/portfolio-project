@@ -1,31 +1,55 @@
-import { Bar } from 'react-chartjs-2';
-import type { ChartOptions, TooltipItem } from 'chart.js';
+import { Chart } from 'react-chartjs-2';
+import type { ChartOptions, ChartData, TooltipItem } from 'chart.js';
 import type { DailyPnlSeries } from '../types';
 import { fmtMoney } from '../lib/format';
 import { unionDates } from '../lib/dailyPnl';
 
 const SERIES_COLORS = ['#0E2C4F', '#B4924C', '#17784C'];
 
-/** Session-by-session P&L per book — shows the rhythm of winning and losing days. */
+/**
+ * Session-by-session P&L per book, with each book's mean daily P&L drawn as a
+ * dashed reference line so individual days can be read against the average.
+ */
 export default function DailyPnlColumns({ series }: { series: { name: string; data: DailyPnlSeries | null }[] }) {
   const dates = unionDates(series.map((s) => s.data));
   if (!dates.length) return null;
 
-  const datasets = series
-    .filter((s) => s.data && s.data.points.length)
-    .map((s, i) => {
-      const byDate = new Map(s.data!.points.map((p) => [p.date, p.pnl]));
-      return {
-        label: s.name,
-        data: dates.map((d) => byDate.get(d) ?? null),
-        backgroundColor: SERIES_COLORS[i % SERIES_COLORS.length],
-        borderWidth: 0,
-        borderRadius: 2,
-      };
-    });
-  if (!datasets.length) return null;
+  const active = series.filter((s) => s.data && s.data.points.length);
+  if (!active.length) return null;
 
-  const options: ChartOptions<'bar'> = {
+  const bars = active.map((s, i) => {
+    const byDate = new Map(s.data!.points.map((p) => [p.date, p.pnl]));
+    return {
+      type: 'bar' as const,
+      label: s.name,
+      data: dates.map((d) => byDate.get(d) ?? null),
+      backgroundColor: SERIES_COLORS[i % SERIES_COLORS.length],
+      borderWidth: 0,
+      borderRadius: 2,
+      order: 2,
+    };
+  });
+
+  const avgLines = active.map((s, i) => {
+    const pts = s.data!.points;
+    const mean = pts.reduce((acc, p) => acc + p.pnl, 0) / pts.length;
+    return {
+      type: 'line' as const,
+      label: `${s.name} · avg ${(mean >= 0 ? '+' : '') + fmtMoney(mean)}`,
+      data: dates.map(() => mean),
+      borderColor: SERIES_COLORS[i % SERIES_COLORS.length],
+      borderWidth: 1.6,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      fill: false,
+      order: 1,
+    };
+  });
+
+  const data = { labels: dates, datasets: [...bars, ...avgLines] } as ChartData<'bar' | 'line'>;
+
+  const options: ChartOptions<'bar' | 'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
@@ -36,7 +60,7 @@ export default function DailyPnlColumns({ series }: { series: { name: string; da
       },
       tooltip: {
         callbacks: {
-          label: (ctx: TooltipItem<'bar'>) =>
+          label: (ctx: TooltipItem<'bar' | 'line'>) =>
             ctx.dataset.label + ': ' + (Number(ctx.parsed.y) >= 0 ? '+' : '') + fmtMoney(ctx.parsed.y),
         },
       },
@@ -55,8 +79,8 @@ export default function DailyPnlColumns({ series }: { series: { name: string; da
   };
 
   return (
-    <div style={{ width: '100%', height: '240px' }}>
-      <Bar data={{ labels: dates, datasets }} options={options} />
+    <div style={{ width: '100%', height: '260px' }}>
+      <Chart type="bar" data={data} options={options} />
     </div>
   );
 }
