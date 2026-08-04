@@ -4,6 +4,7 @@ import { PORTFOLIO_IDS } from './lib/constants';
 import { safeGet, verifiedSet, onKeyChange } from './lib/storage';
 import { BrandLockup } from './components/BrandMark';
 import HomePage from './pages/HomePage';
+import HubPage from './pages/HubPage';
 import SetupWizard from './pages/SetupWizard';
 import LoginGate from './pages/LoginGate';
 import OverviewPage from './pages/OverviewPage';
@@ -26,24 +27,28 @@ interface NavSection {
   items: NavItem[];
 }
 
-function buildNavSections(configsById: ConfigsById): NavSection[] {
+/**
+ * Navigation is scoped to whichever project is open, so a participant's view
+ * never lists or references the other books.
+ */
+function buildNavSections(page: string, configsById: ConfigsById): NavSection[] {
+  if ((PORTFOLIO_IDS as string[]).includes(page)) {
+    const id = page as PortfolioId;
+    return [{
+      heading: 'Project',
+      items: [{ key: id, label: configsById[id].name, sub: configsById[id].strategy }],
+    }];
+  }
   return [
     {
-      heading: 'The desk',
+      heading: 'Comparison',
       items: [
         { key: 'overview', label: 'Overview' },
         { key: 'desk', label: 'Desk view' },
         { key: 'common', label: 'Common Positions' },
         { key: 'risks', label: 'Risks' },
+        { key: 'commentary', label: 'Daily commentary' },
       ],
-    },
-    {
-      heading: 'Portfolios',
-      items: PORTFOLIO_IDS.map((id) => ({ key: id, label: configsById[id].name, sub: configsById[id].strategy })),
-    },
-    {
-      heading: 'Desk notes',
-      items: [{ key: 'commentary', label: 'Commentary' }],
     },
   ];
 }
@@ -53,7 +58,8 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>('home');
   const [config, setConfig] = useState<DeskConfig | null>(null);
   const [histories, setHistories] = useState<Histories>({} as Histories);
-  const [page, setPage] = useState('overview');
+  // 'hub' is the landing view after sign-in; everything else is inside a project.
+  const [page, setPage] = useState('hub');
   // null = still loading, true/false = whether a desk has been set up
   const [hasConfig, setHasConfig] = useState<boolean | null>(null);
 
@@ -161,12 +167,26 @@ export default function App() {
 
   const configsById = {} as ConfigsById;
   config.portfolios.forEach((p) => { configsById[p.id] = p; });
-  const navSections = buildNavSections(configsById);
 
-  const activeSection = navSections.find((s) => s.items.some((i) => i.key === page))?.heading ?? 'The desk';
+  if (page === 'hub') {
+    return (
+      <HubPage
+        configs={configsById}
+        histories={histories}
+        onOpen={(key) => setPage(key)}
+        onLock={() => setPhase('home')}
+      />
+    );
+  }
+
+  const isProject = (PORTFOLIO_IDS as string[]).includes(page);
+  const navSections = buildNavSections(page, configsById);
+
+  const activeSection = isProject ? 'Project' : 'Comparison';
   const activeLabel = navSections.flatMap((s) => s.items).find((i) => i.key === page)?.label ?? 'Overview';
-  // Most recent snapshot date across every book, for the header's context line.
-  const lastUpdated = PORTFOLIO_IDS
+  // Inside a single project only that book's snapshot date is relevant; the
+  // comparison shows the most recent across all three.
+  const lastUpdated = (isProject ? [page as PortfolioId] : PORTFOLIO_IDS)
     .map((id) => (histories[id] || []).slice(-1)[0]?.date)
     .filter(Boolean)
     .sort()
@@ -201,6 +221,9 @@ export default function App() {
           <div className="desk-nav-brand">
             <BrandLockup size={30} variant="light" subtitle="Private Desk" />
           </div>
+          <button className="desk-nav-back" onClick={() => setPage('hub')}>
+            <span aria-hidden="true">←</span> All projects
+          </button>
           <div className="desk-nav-sections">
             {navSections.map((section) => (
               <div className="desk-nav-group" key={section.heading}>
@@ -225,6 +248,8 @@ export default function App() {
         <div className="desk-main">
           <div className="desk-topbar">
             <div className="desk-crumb">
+              <button className="desk-crumb-link" onClick={() => setPage('hub')}>Projects</button>
+              <span className="desk-crumb-sep">/</span>
               <span>{activeSection}</span>
               <span className="desk-crumb-sep">/</span>
               <strong>{activeLabel}</strong>
