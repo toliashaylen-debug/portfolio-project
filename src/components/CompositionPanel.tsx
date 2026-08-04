@@ -37,7 +37,14 @@ export default function CompositionPanel({ positions, themes, reported, weightMo
   // is configured to prefer it and one was actually found — otherwise this is
   // identical to the summed-from-positions breakdown as before.
   const useReportedSectors = !!(preferReportedSectorWeights && reported?.sectorWeights && reported.sectorWeights.length);
-  const sectorWeights = useReportedSectors ? reported!.sectorWeights! : b.sectorWeights;
+  // A reported table is read in whatever row order the sheet happens to list
+  // sectors in, unlike the computed breakdown (already sorted, already
+  // stripped of zero-weight sectors) — normalize both the same way so the
+  // donut's center label and the "top 8" cutoff aren't at the mercy of
+  // wherever the heaviest sector happens to sit in the source sheet.
+  const sectorWeights = (useReportedSectors ? reported!.sectorWeights! : b.sectorWeights)
+    .filter((s) => s.pct > 0)
+    .sort((a, b2) => b2.pct - a.pct);
   const maxSectorPct = sectorWeights[0] ? sectorWeights[0].pct : 0;
   const sectorLevel = useReportedSectors ? riskLevel(maxSectorPct, 25, 45) : b.risk.sectorLevel;
   const sectorDonutSegments = withSectorColors(sectorWeights).slice(0, 8);
