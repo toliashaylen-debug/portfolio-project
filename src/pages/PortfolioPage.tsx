@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, History, PortfolioId, RawSheetsBundle } from '../types';
+import type { ConfigsById, Histories, History, PortfolioId, RawSheetsBundle, TradeHistory } from '../types';
 import { PORTFOLIO_SOURCING } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, sheetAllowed } from '../lib/format';
 import { callClaude } from '../lib/ai';
-import { safeGet } from '../lib/storage';
+import { safeGet, onKeyChange } from '../lib/storage';
 import { gridToTSV } from '../lib/workbook';
+import { loadTradeHistory, refreshTradeHistory, tradeHistoryKey } from '../lib/tradeHistory';
 import CompositionPanel from '../components/CompositionPanel';
 import PositionsTable from '../components/PositionsTable';
+import TradeHistoryPanel from '../components/TradeHistoryPanel';
 import RawSheetViewer from '../components/RawSheetViewer';
 import UploadPanel from '../components/UploadPanel';
 
@@ -31,6 +33,32 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
 
   const [nameDraft, setNameDraft] = useState(cfg.name);
   const [nameSaved, setNameSaved] = useState(cfg.name);
+
+  const [tradeHistory, setTradeHistory] = useState<TradeHistory | null>(null);
+  const [thBusy, setThBusy] = useState(false);
+  const [thError, setThError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    loadTradeHistory(id).then((t) => { if (!cancelled) setTradeHistory(t); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    return onKeyChange(tradeHistoryKey(id), (v) => setTradeHistory(v ? JSON.parse(v) : null));
+  }, [id]);
+
+  async function readTradeHistory() {
+    setThBusy(true); setThError('');
+    try {
+      const t = await refreshTradeHistory(id);
+      setTradeHistory(t);
+    } catch (e) {
+      setThError(e instanceof Error ? e.message : 'Could not read the trade history.');
+    } finally {
+      setThBusy(false);
+    }
+  }
 
   const [strategyDraft, setStrategyDraft] = useState(cfg.strategy);
   const [strategySaved, setStrategySaved] = useState(cfg.strategy);
@@ -136,6 +164,29 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
             <h3>Positions</h3>
             <PositionsTable positions={m.positions} />
           </div>
+        ) : null}
+        {PORTFOLIO_SOURCING[id]?.tradeHistorySheets || PORTFOLIO_SOURCING[id]?.tradeHistoryBuySheets || PORTFOLIO_SOURCING[id]?.tradeHistorySellSheets ? (
+          <>
+            <div className="desk-panel">
+              <div className="desk-panel-head">
+                <h3>Trade history</h3>
+                <button className="desk-btn ghost" onClick={readTradeHistory} disabled={thBusy}>
+                  {thBusy ? (<><span className="desk-spin" />Reading the trade log…</>) : (tradeHistory ? 'Refresh' : 'Read trade history')}
+                </button>
+              </div>
+              {!tradeHistory ? (
+                <div className="desk-note" style={{ marginTop: 0 }}>Not read yet — press the button above to pull buy and sell dates from the trade log.</div>
+              ) : null}
+              {thError ? <div className="desk-error" style={{ marginTop: tradeHistory ? '0' : 'var(--sp-3)' }}>{thError}</div> : null}
+            </div>
+            {tradeHistory ? (
+              <TradeHistoryPanel
+                open={tradeHistory.open}
+                closed={tradeHistory.closed}
+                sellDateCaveat={PORTFOLIO_SOURCING[id]?.tradeHistorySellDateCaveat}
+              />
+            ) : null}
+          </>
         ) : null}
       </div>
 

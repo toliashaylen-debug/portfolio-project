@@ -1,4 +1,4 @@
-import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison, BenchmarkSideData, BenchmarkSeriesPoint, DailyPnlSeries } from '../types';
+import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison, BenchmarkSideData, BenchmarkSeriesPoint, DailyPnlSeries, TradeTransaction } from '../types';
 import { gridToTSV } from './workbook';
 
 function stripJsonFence(text: string): string {
@@ -436,4 +436,91 @@ ${sheetBlocks}`;
     points,
     extractedAt: new Date().toISOString().slice(0, 10),
   };
+}
+
+/**
+ * Reads raw buy/sell transaction rows out of ledger, backlog, or working
+ * order-book sheets. Deliberately stops at the raw transaction level — FIFO
+ * lot-matching (pairing a sale against the specific earlier buy it closes
+ * out) is done afterward in plain code, not asked of the model, since that
+ * arithmetic needs to be exactly reproducible rather than approximately right.
+ */
+export async function extractTradeTransactions(sheets: RawSheet[], restrictSide?: 'buy' | 'sell'): Promise<TradeTransaction[]> {
+  const sheetBlocks = sheets.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid)}\n</sheet>`).join('\n\n');
+  const prompt = `You are reading raw trade/order log sheets from an investment portfolio workbook, given below as tab-separated grids. Each sheet logs individual BUY and SELL transactions — or, for a working order book, placed orders — for the underlying securities an investor actually holds: equities, ETFs, bonds, or currencies.
+
+${restrictSide ? `ONLY extract ${restrictSide.toUpperCase()} transactions from what is given below — do not report the other side at all, even where it's present in a sheet.\n\n` : ''}For each individual transaction row, report:
+- "ticker": the instrument's ticker/symbol/ISIN/currency code, exactly as written
+- "name": the instrument's full name, if a separate name column exists on that row; null otherwise
+- "sleeve": your best classification as "equity" (stocks, ETFs, equity options), "fixedIncome" (bonds, notes), or "other" (currencies, anything else)
+- "side": "buy" or "sell" — read from a column such as "Type" or "Side"
+- "dateRaw": the transaction (or order-placed) date exactly as the cell holds it — a number like 46203, or a string like "2026-07-09" or "7/22/2026". Do not convert or reformat it yourself; calendar conversion happens downstream.
+- "shares": the quantity traded, always reported as a positive number regardless of side
+- "price": the per-unit transaction price, if stated; null if not
+- "realizedPL": the row's own explicitly stated realized profit/loss in dollars — ONLY if that row states one directly; null otherwise. Never compute or estimate this yourself.
+- "sourceSheet": the sheet name this row came from
+
+Rules:
+- Skip rows that are not an actual security transaction: blank rows, running/cumulative balance rows, section-label or column-header rows, and incidental cash-management rows recorded inside an equity or fixed-income log (e.g. a row literally typed "FX Convert" with no ticker) — UNLESS the entire sheet is itself dedicated to tracking currency trades as their own asset class (e.g. titled "FX Backlog" or similar), in which case each currency buy/sell there IS a real transaction — report it with the currency code as "ticker" and sleeve "other".
+- If a sheet is a WORKING ORDER BOOK rather than a record of trades that already happened — recognizable by a Status column with values like "Filled" / "Working" / "Cancelled" tracking whether a placed order has executed yet — extract ONLY the rows whose Status is exactly "Filled"; these are the ones that actually executed. Use its date-placed column as "dateRaw". Every other status means the order never became a real transaction — skip those rows entirely, do not report them with any side.
+- Skip options, futures, and any other derivative overlay entirely — a written/covered call, a put, anything with a strike and expiry. This is about the underlying security itself, not a derivative traded against it; a row whose ticker or product type reads as a call/put/option contract (e.g. "MU US 07/17/26 C1400", a "Product Type" of "Call" or "Put") should be left out of the results altogether, on both the buy and sell side, however its buy/sell/cover/short language is phrased.
+- If a sheet genuinely has no transaction rows at all, that's fine — just contribute nothing from it.
+
+Respond with ONLY strict JSON, no markdown fences, no text outside the JSON, in exactly this shape:
+{"transactions":[{"ticker":string,"name":string|null,"sleeve":"equity"|"fixedIncome"|"other","side":"buy"|"sell","dateRaw":number|string,"shares":number,"price":number|null,"realizedPL":number|null,"sourceSheet":string}]}
+
+Sheets:
+${sheetBlocks}`;
+
+  interface RawTransaction {
+    ticker: string;
+    name: string | null;
+    sleeve: Sleeve;
+    side: 'buy' | 'sell';
+    dateRaw: number | string;
+    shares: number;
+    price: number | null;
+    realizedPL: number | null;
+    sourceSheet: string;
+  }
+  interface RawTransactionsResponse {
+    transactions: RawTransaction[];
+  }
+
+  let parsed: RawTransactionsResponse | null = null;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let raw: string;
+    try {
+      raw = await callClaude(prompt, 8000);
+    } catch (e) {
+      if (attempt === maxAttempts - 1) throw e;
+      continue;
+    }
+    const candidate = parseJsonLoosely<RawTransactionsResponse>(raw);
+    if (candidate && Array.isArray(candidate.transactions)) { parsed = candidate; break; }
+  }
+  if (!parsed) {
+    throw new Error(`The AI reader couldn't produce a usable transaction list after ${maxAttempts} attempts. Try again — if it keeps happening, the sheet may have unusual formatting worth a closer look.`);
+  }
+
+  return parsed.transactions
+    .filter((t) => t && t.ticker && t.shares && (t.side === 'buy' || t.side === 'sell') && (!restrictSide || t.side === restrictSide))
+    .map((t): TradeTransaction | null => {
+      const date = toIsoDate(t.dateRaw);
+      const sleeve: Sleeve = t.sleeve === 'fixedIncome' || t.sleeve === 'equity' ? t.sleeve : 'other';
+      return date ? {
+        ticker: String(t.ticker).trim().toUpperCase(),
+        name: t.name || null,
+        sleeve,
+        side: t.side,
+        date,
+        shares: Math.abs(Number(t.shares)),
+        price: t.price === null || t.price === undefined || !Number.isFinite(Number(t.price)) ? null : Number(t.price),
+        realizedPL: t.realizedPL === null || t.realizedPL === undefined || !Number.isFinite(Number(t.realizedPL)) ? null : Number(t.realizedPL),
+        sourceSheet: t.sourceSheet || sheets[0]?.sheetName || '',
+      } : null;
+    })
+    .filter((t): t is TradeTransaction => t !== null && !isNaN(t.shares) && t.shares > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }

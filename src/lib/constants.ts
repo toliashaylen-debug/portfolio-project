@@ -12,6 +12,10 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     benchmarkSheets: ['benchmark'],
     // Daily P&L comes from the Daily Performance sheet and nowhere else.
     dailyPnlSheets: ['daily performance'],
+    // The ledger records every buy and sell with dates — the source for
+    // showing which positions were sold off, alongside the cover page's
+    // current holdings.
+    tradeHistorySheets: ['backlog (ledger)', 'backlog'],
   },
   p2: {
     positionsSheets: ['active portfolio'],
@@ -22,6 +26,9 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     // Daily P&L comes from the Benchmark sheet and nowhere else — note it is
     // split there into separate equity and fixed income blocks.
     dailyPnlSheets: ['benchmark'],
+    // Each backlog already tracks its own buys and sells with FIFO lots and a
+    // realized P&L column — no other sheet is needed for trade history.
+    tradeHistorySheets: ['eq backlog', 'fi backlog', 'fx_backlog', 'fx backlog', 'opt backlog'],
   },
   p3: {
     // Positions table, snapshot, overview, desk view and common positions all
@@ -48,6 +55,17 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     // Equity sector weights come from the "Sector Breakdown — Equity (live)"
     // table on the summary page, not summed from position rows.
     preferReportedSectorWeights: true,
+    // Equity - Orderbook is a working order book, not a transaction log — it
+    // has no buy-side data at all, only sell orders (mostly covered-call
+    // buybacks), and only its "Filled" rows are real sales. Buy dates come
+    // from Equity - Log instead, read strictly for the buy side so the same
+    // sale is never counted from both sheets.
+    tradeHistoryBuySheets: ['equity - log'],
+    tradeHistorySellSheets: ['equity - orderbook'],
+    // Equity - Orderbook only has "Date Placed," not a confirmed fill date —
+    // for a limit order those can be days apart, so the sell date shown here
+    // is the earlier of the two, not necessarily the exact execution date.
+    tradeHistorySellDateCaveat: 'Sell dates are when the order was placed in Equity - Orderbook, which can be a few days before it actually filled.',
   },
 };
 

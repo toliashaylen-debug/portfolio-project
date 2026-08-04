@@ -167,6 +167,55 @@ export interface PortfolioSourcing {
   preferReportedSectorWeights?: boolean;
   /** Extra raw sheet content fed to the AI when suggesting a strategy label — omitted portfolios keep the ticker/sector-only prompt. */
   strategyContextSheets?: string[] | null;
+  /** Sheet(s) trade history (open + closed positions with buy/sell dates) is read from, when buy and sell sides both live in the same sheet(s). Mutually exclusive with tradeHistoryBuySheets/tradeHistorySellSheets. */
+  tradeHistorySheets?: string[] | null;
+  /** Use instead of tradeHistorySheets when buy-side and sell-side data live in separate, non-overlapping sheets (e.g. a transaction log for buys, a working order book for sells) — read and extracted independently so the same sale is never counted from both. */
+  tradeHistoryBuySheets?: string[] | null;
+  tradeHistorySellSheets?: string[] | null;
+  /** Shown next to the Sold table when the sell-side source only gives an order-placed date rather than a confirmed fill date, which can differ by days. */
+  tradeHistorySellDateCaveat?: string;
+}
+
+export interface TradeTransaction {
+  ticker: string;
+  name: string | null;
+  sleeve: Sleeve;
+  side: 'buy' | 'sell';
+  /** ISO date. */
+  date: string;
+  shares: number;
+  price: number | null;
+  /** The transaction's own stated realized P&L, only when the sheet gives one directly. */
+  realizedPL: number | null;
+  sourceSheet: string;
+}
+
+export interface ClosedPosition {
+  ticker: string;
+  name: string | null;
+  sleeve: Sleeve;
+  buyDate: string | null;
+  sellDate: string;
+  shares: number;
+  buyPrice: number | null;
+  sellPrice: number | null;
+  realizedPL: number | null;
+}
+
+export interface OpenPosition {
+  ticker: string;
+  name: string | null;
+  sleeve: Sleeve;
+  buyDate: string | null;
+  shares: number;
+  buyPrice: number | null;
+}
+
+export interface TradeHistory {
+  found: boolean;
+  open: OpenPosition[];
+  closed: ClosedPosition[];
+  extractedAt: string;
 }
 
 export interface DailyPnlPoint {
