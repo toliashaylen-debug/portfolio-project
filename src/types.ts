@@ -159,6 +159,8 @@ export interface PortfolioSourcing {
   benchmarkSheets: string[];
   /** Sheet(s) daily P&L may be read from — nothing else counts as a source. */
   dailyPnlSheets: string[];
+  /** When true, daily P&L is derived from the day-over-day change in this book's own uploaded snapshots instead of any sheet — for books with no dated performance log at all. Overrides dailyPnlSheets. */
+  dailyPnlFromHistory?: boolean;
   /** Restricts which sheets may contribute the reported total value / equity-FI weight summary. Unrestricted (any sheet) when omitted. */
   summarySheets?: string[] | null;
   /** When true, prefer a sheet-reported equity-sector breakdown over one summed from position rows, if one was found. */

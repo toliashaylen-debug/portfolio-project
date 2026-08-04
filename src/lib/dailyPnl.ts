@@ -1,10 +1,45 @@
-import type { DailyPnlSeries, PortfolioId, RawSheet, RawSheetsBundle } from '../types';
+import type { DailyPnlSeries, DailyPnlPoint, History, PortfolioId, RawSheet, RawSheetsBundle } from '../types';
 import { PORTFOLIO_SOURCING } from './constants';
 import { safeGet, safeSet } from './storage';
 import { sheetAllowed } from './format';
 import { extractDailyPnl } from './ai';
+import { computeSnapshotValue } from './compute';
 
 export const dailyPnlKey = (id: PortfolioId) => `dailypnl-${id}`;
+
+/**
+ * For a book with no dated performance log anywhere in its own workbook, the
+ * day-over-day change in its own uploaded snapshot value stands in for a
+ * daily P&L series — built entirely from what this app has already saved,
+ * never from a sheet. The first snapshot has no prior day to compare against,
+ * so it contributes no point; each snapshot after that does.
+ */
+export function dailyPnlFromHistory(history: History): DailyPnlSeries {
+  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+  const points: DailyPnlPoint[] = [];
+  let prevValue: number | null = null;
+  for (const snap of sorted) {
+    const value = snap.reported && snap.reported.totalValue !== null && snap.reported.totalValue !== undefined
+      ? snap.reported.totalValue
+      : computeSnapshotValue(snap.positions);
+    if (prevValue !== null) {
+      points.push({
+        date: snap.date,
+        pnl: value - prevValue,
+        returnPct: prevValue ? (value - prevValue) / prevValue : null,
+        endingValue: value,
+      });
+    }
+    prevValue = value;
+  }
+  return {
+    found: points.length > 0,
+    sheetUsed: null,
+    method: "Derived from the day-over-day change in this book's own uploaded snapshot value — no dated daily log exists in the source workbook.",
+    points,
+    extractedAt: new Date().toISOString().slice(0, 10),
+  };
+}
 
 export async function loadDailyPnl(id: PortfolioId): Promise<DailyPnlSeries | null> {
   const raw = await safeGet(dailyPnlKey(id));

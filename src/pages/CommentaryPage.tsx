@@ -4,7 +4,7 @@ import { PORTFOLIO_IDS, PORTFOLIO_SOURCING } from '../lib/constants';
 import { fmtMoney, fmtPct, todayStr, cleanProse } from '../lib/format';
 import { callClaude } from '../lib/ai';
 import { safeGet, safeSet, onKeyChange } from '../lib/storage';
-import { loadDailyPnl, refreshDailyPnl, dailyPnlKey, latestPoint, sourceSheetsFor, summarize, deskTotals } from '../lib/dailyPnl';
+import { loadDailyPnl, refreshDailyPnl, dailyPnlKey, dailyPnlFromHistory, latestPoint, sourceSheetsFor, summarize, deskTotals } from '../lib/dailyPnl';
 import DailyPnlBars from '../components/DailyPnlBars';
 import type { PnlBarRow } from '../components/DailyPnlBars';
 import CumulativePnlChart from '../components/CumulativePnlChart';
@@ -26,6 +26,7 @@ type ErrMap = Partial<Record<PortfolioId, string | null>>;
 function sourceLabel(id: PortfolioId): string {
   const s = PORTFOLIO_SOURCING[id];
   if (!s) return 'its single sheet';
+  if (s.dailyPnlFromHistory) return 'the day-over-day change in his own uploaded snapshots';
   return `"${s.dailyPnlSheets.join(' / ')}"`;
 }
 
@@ -44,7 +45,12 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
       const raw = await safeGet('commentary-log');
       setLog(raw ? JSON.parse(raw) : []);
       const loaded: PnlMap = {};
-      for (const id of PORTFOLIO_IDS) loaded[id] = await loadDailyPnl(id);
+      for (const id of PORTFOLIO_IDS) {
+        // History-derived books need no stored key — their series is computed
+        // fresh from `histories` below, always in step with the latest upload.
+        if (PORTFOLIO_SOURCING[id]?.dailyPnlFromHistory) continue;
+        loaded[id] = await loadDailyPnl(id);
+      }
       setPnl(loaded);
     })();
   }, []);
@@ -52,7 +58,7 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
   useEffect(() => {
     const unsubs = [
       onKeyChange('commentary-log', (v) => setLog(v ? JSON.parse(v) : [])),
-      ...PORTFOLIO_IDS.map((id) =>
+      ...PORTFOLIO_IDS.filter((id) => !PORTFOLIO_SOURCING[id]?.dailyPnlFromHistory).map((id) =>
         onKeyChange(dailyPnlKey(id), (v) => {
           setPnl((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null }));
         })
@@ -61,12 +67,25 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
     return () => unsubs.forEach((u) => u());
   }, []);
 
+  // Books using history-derived daily P&L recompute on every render from the
+  // `histories` prop, which is itself already kept live-synced by the parent —
+  // no extra fetch or subscription needed here.
+  const effectivePnl: PnlMap = { ...pnl };
+  PORTFOLIO_IDS.forEach((id) => {
+    if (PORTFOLIO_SOURCING[id]?.dailyPnlFromHistory) {
+      effectivePnl[id] = dailyPnlFromHistory(histories[id] || []);
+    }
+  });
+
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
     setRefreshNote('');
     const nextErrors: ErrMap = {};
     const next: PnlMap = {};
     for (const id of PORTFOLIO_IDS) {
+      // History-derived books have nothing to re-read — they're already
+      // computed fresh from `histories` on every render.
+      if (PORTFOLIO_SOURCING[id]?.dailyPnlFromHistory) continue;
       try {
         const { sheets, error: srcErr } = await sourceSheetsFor(id);
         if (!sheets) { nextErrors[id] = srcErr; next[id] = null; continue; }
@@ -80,23 +99,33 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
     setPnl((prev) => ({ ...prev, ...next }));
     setPnlErrors(nextErrors);
     setRefreshing(false);
-    const ok = PORTFOLIO_IDS.filter((id) => next[id]?.found).length;
+    const ok = PORTFOLIO_IDS.filter((id) =>
+      PORTFOLIO_SOURCING[id]?.dailyPnlFromHistory ? dailyPnlFromHistory(histories[id] || []).found : next[id]?.found
+    ).length;
     setRefreshNote(`Read daily P&L for ${ok} of ${PORTFOLIO_IDS.length} books.`);
-  }, []);
+  }, [histories]);
 
   const rows: PnlBarRow[] = PORTFOLIO_IDS.map((id) => {
-    const series = pnl[id] || null;
+    const series = effectivePnl[id] || null;
     const point = latestPoint(series);
+    const historyDerived = !!PORTFOLIO_SOURCING[id]?.dailyPnlFromHistory;
+    const missing = pnlErrors[id]
+      ? 'Source unavailable'
+      : historyDerived
+      ? 'Needs a second uploaded snapshot'
+      : series
+      ? 'Not found in source'
+      : 'Not read yet';
     return {
       name: configs[id].name.replace(/'s Portfolio$/i, ''),
       pnl: point ? point.pnl : null,
       returnPct: point ? point.returnPct : null,
       date: point ? point.date : null,
-      missing: pnlErrors[id] ? 'Source unavailable' : series ? 'Not found in source' : 'Not read yet',
+      missing,
     };
   });
 
-  const bookSeries = PORTFOLIO_IDS.map((id) => ({ name: configs[id].name.replace(/'s Portfolio$/i, ''), data: pnl[id] || null }));
+  const bookSeries = PORTFOLIO_IDS.map((id) => ({ name: configs[id].name.replace(/'s Portfolio$/i, ''), data: effectivePnl[id] || null }));
   const anyPnl = rows.some((r) => r.pnl !== null);
   const anyHistory = PORTFOLIO_IDS.some((id) => (histories[id] || []).length);
   const latestDate = rows.map((r) => r.date).filter(Boolean).sort().pop() || null;
@@ -106,7 +135,7 @@ export default function CommentaryPage({ configs, histories }: { configs: Config
     try {
       const lines = PORTFOLIO_IDS.map((id) => {
         const cfg = configs[id];
-        const series = pnl[id] || null;
+        const series = effectivePnl[id] || null;
         const p = latestPoint(series);
         if (!p) return `${cfg.name}: no daily P&L available from ${sourceLabel(id)}.`;
         const prior = series!.points.slice(-6, -1);
@@ -143,7 +172,7 @@ ${lines}`;
     <div>
       <h2 className="display">Daily commentary</h2>
       <div className="desk-sub">
-        Daily P&amp;L compared across the three books, read strictly from each portfolio's designated source sheet(s) —
+        Daily P&amp;L compared across the three books, read strictly from each portfolio's designated source —
         Shaylen from "Daily Performance", Antonio from "Benchmark", Israel from {sourceLabel('p3')}.
       </div>
 
@@ -176,7 +205,7 @@ ${lines}`;
             <PnlStatTiles
               tiles={PORTFOLIO_IDS.map((id, i) => ({
                 name: configs[id].name.replace(/'s Portfolio$/i, ''),
-                summary: summarize(pnl[id] || null),
+                summary: summarize(effectivePnl[id] || null),
                 color: BOOK_COLORS[i % BOOK_COLORS.length],
               }))}
             />
@@ -194,18 +223,18 @@ ${lines}`;
 
           <div className="desk-panel">
             <h3>Desk total <span className="unit">(all books combined, per session)</span></h3>
-            <DeskTotalChart points={deskTotals(PORTFOLIO_IDS.map((id) => pnl[id] || null))} />
+            <DeskTotalChart points={deskTotals(PORTFOLIO_IDS.map((id) => effectivePnl[id] || null))} />
           </div>
 
           <div className="desk-panel">
             <h3>Winning vs losing sessions</h3>
-            <WinLossSplit rows={PORTFOLIO_IDS.map((id) => ({ name: configs[id].name.replace(/'s Portfolio$/i, ''), summary: summarize(pnl[id] || null) }))} />
+            <WinLossSplit rows={PORTFOLIO_IDS.map((id) => ({ name: configs[id].name.replace(/'s Portfolio$/i, ''), summary: summarize(effectivePnl[id] || null) }))} />
           </div>
 
           <div className="desk-panel">
             <h3>Where the figures come from</h3>
             {PORTFOLIO_IDS.map((id) => {
-              const s = pnl[id];
+              const s = effectivePnl[id];
               return s?.method ? (
                 <div className="desk-note" key={id} style={{ marginTop: '4px' }}>
                   <strong>{configs[id].name}</strong> — {s.sheetUsed ? `"${s.sheetUsed}": ` : ''}{s.method}

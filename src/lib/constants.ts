@@ -36,10 +36,12 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     // Equity vs. S&P 500 and fixed income vs. LQD, read only from the summary
     // page's own benchmark table.
     benchmarkSheets: ['Cover & Returns'],
-    // No dated daily log exists for this book — restricting the search to
-    // these three pages means the desk honestly reports "not found" rather
-    // than inventing a trend from elsewhere.
+    // No dated daily log exists anywhere in this book's own workbook — daily
+    // P&L is derived from the change between his own uploaded snapshots
+    // instead (see dailyPnlFromHistory below). This list stays as documentation
+    // of which pages were checked and found to have no such log.
     dailyPnlSheets: ['Cover & Returns', 'Equity - Active', 'FI - Active'],
+    dailyPnlFromHistory: true,
     // Total value and the equity/fixed-income split come only from the summary
     // page's own reported figures, never summed from position rows.
     summarySheets: ['cover & returns'],
