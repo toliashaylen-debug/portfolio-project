@@ -163,6 +163,15 @@ export default function App() {
   config.portfolios.forEach((p) => { configsById[p.id] = p; });
   const navSections = buildNavSections(configsById);
 
+  const activeSection = navSections.find((s) => s.items.some((i) => i.key === page))?.heading ?? 'The desk';
+  const activeLabel = navSections.flatMap((s) => s.items).find((i) => i.key === page)?.label ?? 'Overview';
+  // Most recent snapshot date across every book, for the header's context line.
+  const lastUpdated = PORTFOLIO_IDS
+    .map((id) => (histories[id] || []).slice(-1)[0]?.date)
+    .filter(Boolean)
+    .sort()
+    .pop() ?? null;
+
   let pageEl;
   if (page === 'overview') pageEl = <OverviewPage configs={configsById} histories={histories} goTo={goTo} />;
   else if (page === 'desk') pageEl = <DeskViewPage configs={configsById} histories={histories} />;
@@ -213,7 +222,19 @@ export default function App() {
             <button onClick={() => setPhase('home')}>Lock desk &amp; sign out</button>
           </div>
         </div>
-        <div className="desk-main">{pageEl}</div>
+        <div className="desk-main">
+          <div className="desk-topbar">
+            <div className="desk-crumb">
+              <span>{activeSection}</span>
+              <span className="desk-crumb-sep">/</span>
+              <strong>{activeLabel}</strong>
+            </div>
+            <div className="desk-topbar-meta">
+              {lastUpdated ? <span>Last snapshot {lastUpdated}</span> : null}
+            </div>
+          </div>
+          {pageEl}
+        </div>
       </div>
     </div>
   );

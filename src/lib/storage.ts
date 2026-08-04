@@ -47,13 +47,24 @@ export function onKeyChange(key: string, callback: KeyChangeListener): () => voi
   };
 }
 
+/** Supabase errors serialise to "[object Object]" by default, which tells you nothing. */
+function describe(e: unknown): string {
+  if (!e) return 'unknown error';
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'object') {
+    const o = e as { message?: string; code?: string; details?: string; hint?: string };
+    return [o.message, o.code && `code=${o.code}`, o.details, o.hint].filter(Boolean).join(' | ') || JSON.stringify(e);
+  }
+  return String(e);
+}
+
 export async function safeGet(key: string): Promise<string | null> {
   try {
     const { data, error } = await supabase.from('kv_store').select('value').eq('key', key).maybeSingle();
-    if (error) { console.error('storage.get failed for', key, error); return null; }
+    if (error) { console.error(`storage.get failed for "${key}":`, describe(error)); return null; }
     return data ? data.value : null;
   } catch (e) {
-    console.error('storage.get failed for', key, e);
+    console.error(`storage.get failed for "${key}":`, describe(e));
     return null;
   }
 }
@@ -61,10 +72,10 @@ export async function safeGet(key: string): Promise<string | null> {
 export async function safeSet(key: string, value: string): Promise<boolean> {
   try {
     const { error } = await supabase.from('kv_store').upsert({ key, value, updated_at: new Date().toISOString() });
-    if (error) { console.error('storage.set failed for', key, error); return false; }
+    if (error) { console.error(`storage.set failed for "${key}":`, describe(error)); return false; }
     return true;
   } catch (e) {
-    console.error('storage.set failed for', key, e);
+    console.error(`storage.set failed for "${key}":`, describe(e));
     return false;
   }
 }
@@ -79,8 +90,8 @@ export async function verifiedSet(key: string, value: string): Promise<boolean> 
 export async function safeDelete(key: string): Promise<void> {
   try {
     const { error } = await supabase.from('kv_store').delete().eq('key', key);
-    if (error) console.error('storage.delete failed for', key, error);
+    if (error) console.error(`storage.delete failed for "${key}":`, describe(error));
   } catch (e) {
-    console.error('storage.delete failed for', key, e);
+    console.error(`storage.delete failed for "${key}":`, describe(e));
   }
 }
