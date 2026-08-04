@@ -86,7 +86,7 @@ export default function UploadPanel({ portfolioId, onSaved }: { portfolioId: Por
             ? ('Equity ' + (reported.equityWeightPct !== null ? reported.equityWeightPct.toFixed(1) : '—') + '%, Fixed income ' + (reported.fixedIncomeWeightPct !== null ? reported.fixedIncomeWeightPct.toFixed(1) : '—') + '% (reported directly in the file)')
             : b.sleeveSegments.map((s) => s.label + ' ' + s.pct.toFixed(1) + '%').join(', ');
           const sectorText = b.sectorWeights.slice(0, 6).map((s) => s.label + ' ' + s.pct.toFixed(1) + '%').join(', ');
-          const topText = b.topPositions.slice(0, 5).map((p) => p.ticker + ' ' + p.pct.toFixed(1) + '%').join(', ');
+          const topText = b.topPositions.slice(0, 5).map((p) => p.ticker + ' (' + (SLEEVE_LABELS[p.sleeve] || p.sleeve) + ') ' + p.pct.toFixed(1) + '%').join(', ');
           const totalValueText = reported && reported.totalValue ? (fmtMoney(reported.totalValue) + ' (reported as of ' + (reported.totalValueAsOf || 'latest') + ')') : fmtMoney(b.totalValue);
 
           let extraContext = '';
@@ -98,7 +98,7 @@ export default function UploadPanel({ portfolioId, onSaved }: { portfolioId: Por
             }
           }
 
-          const themesPrompt = `A portfolio has this exact computed breakdown — do not restate these numbers, they are already shown separately:\nAllocation: ${sleeveText}.\nSector/theme weights: ${sectorText}.\nLargest positions: ${topText}.\nTotal value: ${totalValueText} across ${b.numPositions} positions.${extraContext}\n\nIn 2-3 sentences, say what this composition suggests strategically — the kind of risk being taken, what the sector/theme tilt implies, and whether the concentration level is notable. If the additional source material above shows anything notable (recent trades, performance trend, benchmark comparison), you may reference it briefly. Be specific, no generic filler, no repeating the percentages themselves. Write it as flowing prose in complete sentences — no bullet points, no dashes, no line breaks, no lists. Respond with only those sentences, nothing else.`;
+          const themesPrompt = `A portfolio has this exact computed breakdown — do not restate these numbers, they are already shown separately:\nAllocation: ${sleeveText}.\nSector/theme weights (equity sleeve only — fixed income holdings are never part of this breakdown, whatever they're called): ${sectorText}.\nLargest positions, each tagged with which sleeve it belongs to — treat that tag as authoritative, never infer a position's sleeve from its name or ticker: ${topText}.\nTotal value: ${totalValueText} across ${b.numPositions} positions.${extraContext}\n\nIn 2-3 sentences, say what this composition suggests strategically — the kind of risk being taken, what the sector/theme tilt implies, and whether the concentration level is notable. If the additional source material above shows anything notable (recent trades, performance trend, benchmark comparison), you may reference it briefly. Be specific, no generic filler, no repeating the percentages themselves. Write it as flowing prose in complete sentences — no bullet points, no dashes, no line breaks, no lists. Respond with only those sentences, nothing else.`;
           themes = await callClaude(themesPrompt, 400);
         }
       } catch {
