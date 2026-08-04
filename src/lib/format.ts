@@ -5,7 +5,7 @@ export function normSheetName(s: string | null | undefined): string {
 export function sheetAllowed(sheetName: string, allowedList: string[] | null | undefined): boolean {
   if (!allowedList) return true;
   const n = normSheetName(sheetName);
-  return allowedList.some((a) => n === a || n.includes(a));
+  return allowedList.some((a) => { const na = normSheetName(a); return n === na || n.includes(na); });
 }
 
 export function todayStr(): string {
