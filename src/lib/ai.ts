@@ -155,7 +155,7 @@ ${sheetBlocks}`;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let raw: string;
     try {
-      raw = await callClaude(prompt, 4500);
+      raw = await callClaude(prompt, 8000);
     } catch (e) {
       if (attempt === maxAttempts - 1) throw e;
       continue;
@@ -275,7 +275,7 @@ ${sheetBlocks}`;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let raw: string;
     try {
-      raw = await callClaude(prompt, 3000);
+      raw = await callClaude(prompt, 5000);
     } catch (e) {
       if (attempt === maxAttempts - 1) throw e;
       continue;
@@ -402,7 +402,7 @@ ${sheetBlocks}`;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let raw: string;
     try {
-      raw = await callClaude(prompt, 4000);
+      raw = await callClaude(prompt, 8000);
     } catch (e) {
       if (attempt === maxAttempts - 1) throw e;
       continue;
