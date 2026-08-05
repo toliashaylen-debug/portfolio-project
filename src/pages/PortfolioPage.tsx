@@ -6,7 +6,7 @@ import { fmtMoney, fmtPct, sheetAllowed } from '../lib/format';
 import { callClaude } from '../lib/ai';
 import { safeGet, onKeyChange } from '../lib/storage';
 import { gridToTSV } from '../lib/workbook';
-import { loadTradeHistory, refreshTradeHistory, tradeHistoryKey } from '../lib/tradeHistory';
+import { loadTradeHistory, refreshTradeHistory, tradeHistoryKey, realizedPLSummary } from '../lib/tradeHistory';
 import CompositionPanel from '../components/CompositionPanel';
 import PositionsTable from '../components/PositionsTable';
 import TradeHistoryPanel from '../components/TradeHistoryPanel';
@@ -138,7 +138,7 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
           />
         ) : null}
         {m ? (
-          <div className="desk-grid3">
+          <div className="desk-grid4">
             <div className="desk-card">
               <div className="desk-card-name">Value</div>
               <div className="desk-card-value mono">{fmtMoney(m.displayValue)}</div>
@@ -156,6 +156,24 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
             <div className="desk-card">
               <div className="desk-card-name">Unrealized P&amp;L</div>
               <div className="desk-card-value mono" style={{ color: m.totalPL >= 0 ? 'var(--pos)' : 'var(--neg)' }}>{fmtMoney(m.totalPL)}</div>
+            </div>
+            <div className="desk-card">
+              <div className="desk-card-name">Realized P&amp;L</div>
+              {tradeHistory ? (
+                <>
+                  <div className="desk-card-value mono" style={{ color: realizedPLSummary(tradeHistory.closed).total >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
+                    {fmtMoney(realizedPLSummary(tradeHistory.closed).total)}
+                  </div>
+                  {(() => {
+                    const r = realizedPLSummary(tradeHistory.closed);
+                    return r.totalCount > r.knownCount ? (
+                      <div className="desk-note" style={{ marginTop: '4px' }}>{r.knownCount} of {r.totalCount} sales state a P&amp;L</div>
+                    ) : null;
+                  })()}
+                </>
+              ) : (
+                <div className="desk-note" style={{ marginTop: '4px' }}>Read trade history below to see this</div>
+              )}
             </div>
           </div>
         ) : null}

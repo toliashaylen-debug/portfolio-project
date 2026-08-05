@@ -581,8 +581,10 @@ html { scroll-behavior: smooth; }
    Cards, panels, tables
    ============================================================ */
 .desk-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-4); margin-bottom: var(--sp-6); }
+.desk-grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-4); margin-bottom: var(--sp-6); }
 @media (max-width: 1000px) {
   .desk-grid3 { grid-template-columns: 1fr; }
+  .desk-grid4 { grid-template-columns: repeat(2, 1fr); }
   .desk-main { padding: var(--sp-5) var(--sp-4) 56px; }
 }
 /* Narrow the sidebar only while it is still a sidebar — below 760px it becomes
