@@ -1,29 +1,29 @@
 import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, PortfolioId, TradeHistory } from '../types';
+import type { ConfigsById, Histories, PortfolioId, RealizedPLResult } from '../types';
 import { PORTFOLIO_IDS } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, chipClass } from '../lib/format';
-import { loadTradeHistory, tradeHistoryKey, realizedPLSummary } from '../lib/tradeHistory';
+import { loadRealizedPL, realizedPLKey } from '../lib/realizedPL';
 import { onKeyChange } from '../lib/storage';
 import AllocationBar from '../components/AllocationBar';
 import DeskTotals from '../components/DeskTotals';
 
 export default function OverviewPage({ configs, histories, goTo }: { configs: ConfigsById; histories: Histories; goTo: (page: PortfolioId) => void }) {
-  const [tradeHistories, setTradeHistories] = useState<Partial<Record<PortfolioId, TradeHistory | null>>>({});
+  const [realizedPLs, setRealizedPLs] = useState<Partial<Record<PortfolioId, RealizedPLResult | null>>>({});
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const loaded: Partial<Record<PortfolioId, TradeHistory | null>> = {};
-      for (const id of PORTFOLIO_IDS) loaded[id] = await loadTradeHistory(id);
-      if (!cancelled) setTradeHistories(loaded);
+      const loaded: Partial<Record<PortfolioId, RealizedPLResult | null>> = {};
+      for (const id of PORTFOLIO_IDS) loaded[id] = await loadRealizedPL(id);
+      if (!cancelled) setRealizedPLs(loaded);
     })();
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     const unsubs = PORTFOLIO_IDS.map((id) =>
-      onKeyChange(tradeHistoryKey(id), (v) => setTradeHistories((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null })))
+      onKeyChange(realizedPLKey(id), (v) => setRealizedPLs((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null })))
     );
     return () => unsubs.forEach((u) => u());
   }, []);
@@ -31,9 +31,9 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
   // Only add up what's actually been read for every book — a partial desk
   // total that silently omits an un-read book would understate realized P&L
   // without saying so.
-  const allTradeHistoriesRead = PORTFOLIO_IDS.every((id) => tradeHistories[id]);
-  const deskRealizedPL = allTradeHistoriesRead
-    ? PORTFOLIO_IDS.reduce((s, id) => s + realizedPLSummary(tradeHistories[id]!.closed).total, 0)
+  const allRealizedPLsRead = PORTFOLIO_IDS.every((id) => realizedPLs[id]);
+  const deskRealizedPL = allRealizedPLsRead
+    ? PORTFOLIO_IDS.reduce((s, id) => s + realizedPLs[id]!.total, 0)
     : null;
 
   return (
@@ -71,9 +71,9 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
                   </div>
                   <div className="desk-mini-row">
                     <span>Realized P&amp;L</span>
-                    {tradeHistories[id] ? (
-                      <span className="mono" style={{ color: realizedPLSummary(tradeHistories[id]!.closed).total >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
-                        {fmtMoney(realizedPLSummary(tradeHistories[id]!.closed).total)}
+                    {realizedPLs[id] ? (
+                      <span className="mono" style={{ color: realizedPLs[id]!.total >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
+                        {fmtMoney(realizedPLs[id]!.total)}
                       </span>
                     ) : (
                       <span className="mono" style={{ color: 'var(--text-faint)' }}>not read yet</span>

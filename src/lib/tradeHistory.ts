@@ -17,24 +17,6 @@ export async function loadTradeHistory(id: PortfolioId): Promise<TradeHistory | 
   }
 }
 
-export interface RealizedPLSummary {
-  /** Sum of realized P&L across closed lots that stated one — never invented for lots that didn't. */
-  total: number;
-  /** How many closed lots contributed a real number, out of how many closed lots exist in total. */
-  knownCount: number;
-  totalCount: number;
-}
-
-/** No positions sold yet is a real, known zero — not the same thing as "sold, but P&L unstated." */
-export function realizedPLSummary(closed: ClosedPosition[]): RealizedPLSummary {
-  const known = closed.filter((c) => c.realizedPL !== null);
-  return {
-    total: known.reduce((s, c) => s + (c.realizedPL as number), 0),
-    knownCount: known.length,
-    totalCount: closed.length,
-  };
-}
-
 /**
  * FIFO lot-matching: each sale is paired against the oldest still-open buy
  * lot(s) for that ticker, splitting across lots when a sale doesn't line up

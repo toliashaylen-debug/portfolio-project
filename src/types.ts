@@ -174,6 +174,21 @@ export interface PortfolioSourcing {
   tradeHistorySellSheets?: string[] | null;
   /** Shown next to the Sold table when the sell-side source only gives an order-placed date rather than a confirmed fill date, which can differ by days. */
   tradeHistorySellDateCaveat?: string;
+  /** Sheet(s) permitted as a source for realized P&L — read only from columns/sections explicitly labeled as such, never derived from buy/sell matching. */
+  realizedPLSheets?: string[] | null;
+}
+
+export interface RealizedPLEntry {
+  ticker: string;
+  value: number;
+  sourceSheet: string;
+}
+
+export interface RealizedPLResult {
+  found: boolean;
+  total: number;
+  entries: RealizedPLEntry[];
+  extractedAt: string;
 }
 
 export interface TradeTransaction {

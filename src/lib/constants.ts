@@ -16,6 +16,9 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     // showing which positions were sold off, alongside the cover page's
     // current holdings.
     tradeHistorySheets: ['backlog (ledger)', 'backlog'],
+    // The ledger's own "Realized P&L" column, per transaction row — summed
+    // directly, nothing computed from buy/sell matching.
+    realizedPLSheets: ['backlog (ledger)', 'backlog'],
   },
   p2: {
     positionsSheets: ['active portfolio'],
@@ -29,6 +32,8 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     // Each backlog already tracks its own buys and sells with FIFO lots and a
     // realized P&L column — no other sheet is needed for trade history.
     tradeHistorySheets: ['eq backlog', 'fi backlog', 'fx_backlog', 'fx backlog', 'opt backlog'],
+    // Each backlog's own "Realized PnL" column, per transaction row.
+    realizedPLSheets: ['eq backlog', 'fi backlog', 'fx_backlog', 'fx backlog', 'opt backlog'],
   },
   p3: {
     // Positions table, snapshot, overview, desk view and common positions all
@@ -66,6 +71,14 @@ export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> =
     // for a limit order those can be days apart, so the sell date shown here
     // is the earlier of the two, not necessarily the exact execution date.
     tradeHistorySellDateCaveat: 'Sell dates are when the order was placed in Equity - Orderbook, which can be a few days before it actually filled.',
+    // Equity - Active and FI - Active each carry their own "Realized PnL ($)"
+    // column, a running total per currently-held ticker. Equity - Log and
+    // FI - Log carry no comparable labeled column (only "FX Realized PnL",
+    // a currency-conversion figure, not this) — included per instruction, but
+    // contribute nothing. Note the resulting gap: a position fully sold out
+    // (e.g. INTC, CRWV) drops off Active entirely and isn't captured by any
+    // of these four sheets, so it's honestly excluded rather than estimated.
+    realizedPLSheets: ['equity - log', 'equity - active', 'fi - log', 'fi - active'],
   },
 };
 

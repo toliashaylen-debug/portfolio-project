@@ -1,4 +1,4 @@
-import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison, BenchmarkSideData, BenchmarkSeriesPoint, DailyPnlSeries, TradeTransaction } from '../types';
+import type { Position, Sleeve, RawSheet, PositionSheetCandidate, SummarySheet, BenchmarkComparison, BenchmarkSideData, BenchmarkSeriesPoint, DailyPnlSeries, TradeTransaction, RealizedPLEntry } from '../types';
 import { gridToTSV } from './workbook';
 
 function stripJsonFence(text: string): string {
@@ -523,4 +523,64 @@ ${sheetBlocks}`;
     })
     .filter((t): t is TradeTransaction => t !== null && !isNaN(t.shares) && t.shares > 0)
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Reads only columns/sections explicitly labeled as realized P&L, wherever
+ * they appear — per-transaction on a ledger, or a cumulative per-ticker
+ * figure on a position sheet. Deliberately does not derive this from buy/sell
+ * matching itself; a sheet either states a realized figure or it doesn't, and
+ * summing whatever's stated is a separate, decoupled source from the trade
+ * history's FIFO reconstruction.
+ */
+export async function extractRealizedPL(sheets: RawSheet[]): Promise<RealizedPLEntry[]> {
+  const sheetBlocks = sheets.map((s) => `<sheet name="${s.sheetName}">\n${gridToTSV(s.grid)}\n</sheet>`).join('\n\n');
+  const prompt = `You are reading sheets from an investment portfolio workbook, given below as tab-separated grids. Find every column or labeled section that explicitly states a REALIZED profit/loss figure for a holding or a trade — headed something like "Realized PnL", "Realized PnL ($)", "Realized P&L", or an unambiguous equivalent (case and spacing don't matter).
+
+Do NOT use a column headed "Unrealized PnL" (a live gain on a still-open position — a different concept entirely) or "FX Realized PnL" (a currency-conversion gain, not a security trade's own realized P&L) — unless a sheet genuinely has no other realized-P&L column at all, in which case say so isn't applicable here since you should simply report nothing from that sheet.
+
+Some sheets state one realized P&L figure per individual transaction row (a trade-by-trade ledger, where most rows are 0 or blank and only closing/selling rows have a nonzero figure); others state one cumulative figure per currently-held ticker (a position sheet that rolls a partial sale's realized gain into a running total for that ticker, and drops the ticker's row entirely once it's fully sold out — so a fully-closed position may not appear in that sheet at all, which is a real, honest gap in coverage, not something to work around by estimating a number for it). Either shape is fine — report every populated value you find, whichever shape the sheet actually uses.
+
+For each populated value, report:
+- "ticker": the identifier on that same row (ticker, ISIN, or name — whatever the sheet uses)
+- "value": the dollar figure exactly as the cell states it — do not compute, sum, round, or estimate this yourself
+- "sourceSheet": which sheet this row came from
+
+Skip rows where the realized-P&L cell is blank, shows "-", a formula error, or is a header/label/section-title row rather than actual data. A stated value of exactly 0 is a real reported figure and should be included — just don't invent 0 for a row where the cell is genuinely blank or a dash.
+
+Respond with ONLY strict JSON, no markdown fences, no text outside the JSON, in exactly this shape:
+{"entries":[{"ticker":string,"value":number,"sourceSheet":string}]}
+
+Sheets:
+${sheetBlocks}`;
+
+  interface RawEntry {
+    ticker: string;
+    value: number;
+    sourceSheet: string;
+  }
+  interface RawResponse {
+    entries: RawEntry[];
+  }
+
+  let parsed: RawResponse | null = null;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let raw: string;
+    try {
+      raw = await callClaude(prompt, 6000);
+    } catch (e) {
+      if (attempt === maxAttempts - 1) throw e;
+      continue;
+    }
+    const candidate = parseJsonLoosely<RawResponse>(raw);
+    if (candidate && Array.isArray(candidate.entries)) { parsed = candidate; break; }
+  }
+  if (!parsed) {
+    throw new Error(`The AI reader couldn't produce a usable realized P&L list after ${maxAttempts} attempts. Try again — if it keeps happening, the sheet may have unusual formatting worth a closer look.`);
+  }
+
+  return parsed.entries
+    .filter((e) => e && e.ticker && typeof e.value === 'number' && Number.isFinite(e.value))
+    .map((e) => ({ ticker: String(e.ticker).trim().toUpperCase(), value: Number(e.value), sourceSheet: e.sourceSheet || sheets[0]?.sheetName || '' }));
 }

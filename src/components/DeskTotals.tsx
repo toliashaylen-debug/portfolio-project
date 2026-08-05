@@ -35,7 +35,7 @@ export default function DeskTotals({ histories, realizedPL }: { configs: Configs
         </div>
       </div>
       {realizedPL === null || realizedPL === undefined ? (
-        <div className="desk-note" style={{ marginTop: 'var(--sp-3)' }}>Realized P&amp;L needs trade history read for all three books — visit each portfolio's page and press "Read trade history."</div>
+        <div className="desk-note" style={{ marginTop: 'var(--sp-3)' }}>Realized P&amp;L needs to be read for all three books — visit each portfolio's page and press "Read realized P&amp;L."</div>
       ) : null}
     </div>
   );

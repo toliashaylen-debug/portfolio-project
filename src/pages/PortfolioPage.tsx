@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, History, PortfolioId, RawSheetsBundle, TradeHistory } from '../types';
+import type { ConfigsById, Histories, History, PortfolioId, RawSheetsBundle, TradeHistory, RealizedPLResult } from '../types';
 import { PORTFOLIO_SOURCING } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, sheetAllowed } from '../lib/format';
 import { callClaude } from '../lib/ai';
 import { safeGet, onKeyChange } from '../lib/storage';
 import { gridToTSV } from '../lib/workbook';
-import { loadTradeHistory, refreshTradeHistory, tradeHistoryKey, realizedPLSummary } from '../lib/tradeHistory';
+import { loadTradeHistory, refreshTradeHistory, tradeHistoryKey } from '../lib/tradeHistory';
+import { loadRealizedPL, refreshRealizedPL, realizedPLKey } from '../lib/realizedPL';
 import CompositionPanel from '../components/CompositionPanel';
 import PositionsTable from '../components/PositionsTable';
 import TradeHistoryPanel from '../components/TradeHistoryPanel';
@@ -57,6 +58,36 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
       setThError(e instanceof Error ? e.message : 'Could not read the trade history.');
     } finally {
       setThBusy(false);
+    }
+  }
+
+  // Realized P&L is deliberately decoupled from trade history: it's summed
+  // only from columns/sections a sheet explicitly labels as realized P&L,
+  // never derived from the FIFO buy/sell matching above — and for some
+  // books the two features even draw from different sheets.
+  const [realizedPL, setRealizedPL] = useState<RealizedPLResult | null>(null);
+  const [rpBusy, setRpBusy] = useState(false);
+  const [rpError, setRpError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    loadRealizedPL(id).then((r) => { if (!cancelled) setRealizedPL(r); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    return onKeyChange(realizedPLKey(id), (v) => setRealizedPL(v ? JSON.parse(v) : null));
+  }, [id]);
+
+  async function readRealizedPL() {
+    setRpBusy(true); setRpError('');
+    try {
+      const r = await refreshRealizedPL(id);
+      setRealizedPL(r);
+    } catch (e) {
+      setRpError(e instanceof Error ? e.message : 'Could not read realized P&L.');
+    } finally {
+      setRpBusy(false);
     }
   }
 
@@ -159,21 +190,22 @@ export default function PortfolioPage({ id, configs, histories, onHistoryChange,
             </div>
             <div className="desk-card">
               <div className="desk-card-name">Realized P&amp;L</div>
-              {tradeHistory ? (
-                <>
-                  <div className="desk-card-value mono" style={{ color: realizedPLSummary(tradeHistory.closed).total >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
-                    {fmtMoney(realizedPLSummary(tradeHistory.closed).total)}
-                  </div>
-                  {(() => {
-                    const r = realizedPLSummary(tradeHistory.closed);
-                    return r.totalCount > r.knownCount ? (
-                      <div className="desk-note" style={{ marginTop: '4px' }}>{r.knownCount} of {r.totalCount} sales state a P&amp;L</div>
-                    ) : null;
-                  })()}
-                </>
+              {realizedPL ? (
+                <div className="desk-card-value mono" style={{ color: realizedPL.total >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
+                  {fmtMoney(realizedPL.total)}
+                </div>
               ) : (
-                <div className="desk-note" style={{ marginTop: '4px' }}>Read trade history below to see this</div>
+                <div className="desk-note" style={{ marginTop: '4px' }}>Not read yet</div>
               )}
+              <button
+                className="desk-btn ghost"
+                style={{ marginTop: 'var(--sp-2)', padding: '4px 10px', fontSize: '11.5px' }}
+                onClick={readRealizedPL}
+                disabled={rpBusy}
+              >
+                {rpBusy ? (<><span className="desk-spin" />Reading…</>) : (realizedPL ? 'Refresh' : 'Read realized P&L')}
+              </button>
+              {rpError ? <div className="desk-error" style={{ marginTop: 'var(--sp-2)', fontSize: '11.5px', padding: '6px 8px' }}>{rpError}</div> : null}
             </div>
           </div>
         ) : null}
