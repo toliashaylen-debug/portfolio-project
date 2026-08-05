@@ -56,7 +56,12 @@ function parseWorkbook(path) {
   const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
   const nonEmpty = aoa.filter((r) => r && r.some((c) => c !== null && c !== undefined && c !== ''));
   const header = nonEmpty[0].map((c) => String(c ?? '').trim());
-  const rows = nonEmpty.slice(1).map((r) =>
+  // BQL exports insert a units/label row directly under the header (e.g. a
+  // "DATES" / "#px" row) before the real data starts — its first cell is
+  // never a real date, so it's the reliable way to spot and skip it.
+  const isDateLike = (c) => typeof c === 'number' || (typeof c === 'string' && /^\d{4}-\d{2}-\d{2}/.test(c.trim()));
+  const dataRows = nonEmpty.slice(1).filter((r) => isDateLike(r[0]));
+  const rows = dataRows.map((r) =>
     r.map((c, i) => {
       // Excel stores dates as serial numbers; normalise column 0 to ISO.
       if (i === 0 && typeof c === 'number') {

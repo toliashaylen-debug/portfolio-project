@@ -16,6 +16,7 @@ GOOGL US Equity
 TLN US Equity
 CVX US Equity
 UNH US Equity
+SNDK US Equity
 T 4.375 05/15/36 Govt
 T 4.125 06/30/28 Govt
 AAPL 4.75 05/12/2035 Corp
@@ -33,4 +34,18 @@ LOHA US Equity
 AIR FP Equity
 EMBJ US Equity
 EQTL3
-SNDK US Equity
+VOO US Equity
+QQQ US Equity
+MEUD FP Equity
+JPM US Equity
+JPM US 08/21/26 C350 Corp
+XLU US Equity
+VWCE GY Equity
+RSP US Equity
+AAPL US Equity
+/isin/US91282CQZ76
+/isin/US91282CQY02
+/isin/USU3826RAK96
+/isin/USU30249AC72
+/isin/XS1843433639
+/isin/US68389XCP87
