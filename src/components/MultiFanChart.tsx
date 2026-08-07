@@ -38,7 +38,7 @@ export default function MultiFanChart({ series }: { series: MultiFanSeries[] }) 
         callbacks: {
           label: (ctx: TooltipItem<'line'>) => {
             const s = series[ctx.datasetIndex];
-            const val = ctx.parsed.y;
+            const val = ctx.parsed.y ?? 0;
             const pct = (val - s.sim.totalValue) / s.sim.totalValue;
             return ctx.dataset.label + ': ' + fmtMoney(val) + ' (' + fmtPct(pct) + ')';
           },
