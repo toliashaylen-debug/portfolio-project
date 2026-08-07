@@ -1,4 +1,4 @@
-import type { Position, MonteCarloResult, MonteCarloAsset, PriceStats, MonteCarloCoverage } from '../types';
+import type { Position, MonteCarloResult, MonteCarloAsset, PriceStats, MonteCarloCoverage, Sleeve } from '../types';
 import { valueOf } from './compute';
 import { corrKey } from './priceStats';
 
@@ -138,6 +138,55 @@ export function estimateSharpe(
     annualizedVol: volResult.vol,
     days: Math.round(days),
     historicalWeight: volResult.historicalWeight,
+    lowConfidence: days < SHARPE_LOW_CONFIDENCE_DAYS,
+  };
+}
+
+export interface SleeveSharpeResult {
+  sharpe: number | null;
+  volatility: number | null;
+  annualizedReturn: number | null;
+  days: number;
+  lowConfidence: boolean;
+}
+
+/**
+ * Per-sleeve Sharpe ratio and volatility, so equity and fixed income can be
+ * judged separately rather than blended into one figure. Volatility is
+ * always computed the same way as the Monte Carlo sim, restricted to that
+ * sleeve's own holdings. Sharpe additionally needs a return for that sleeve
+ * — pass the book's own sheet-reported cumulative return for the sleeve
+ * (as a whole percent, e.g. 6.76 for 6.76%) when available; Sharpe is null
+ * without one, but volatility is still returned.
+ */
+export function estimateSleeveSharpe(
+  positions: Position[],
+  sleeve: Sleeve,
+  sleeveReturnPctWhole: number | null,
+  inceptionDateStr: string,
+  stats?: PriceStats | null,
+): SleeveSharpeResult {
+  const sleevePositions = positions.filter((p) => p.sleeve === sleeve);
+  const volResult = computePortfolioVolatility(sleevePositions, stats);
+  const volatility = volResult && volResult.vol > 0 ? volResult.vol : null;
+
+  const inception = new Date(inceptionDateStr + 'T00:00:00Z');
+  const days = isNaN(inception.getTime()) ? 0 : Math.round((Date.now() - inception.getTime()) / 86400000);
+
+  let annualizedReturn: number | null = null;
+  if (sleeveReturnPctWhole !== null && days >= MIN_DAYS_FOR_SHARPE_ESTIMATE) {
+    const totalReturn = sleeveReturnPctWhole / 100;
+    if (totalReturn > -1) {
+      const years = days / 365.25;
+      annualizedReturn = Math.pow(1 + totalReturn, 1 / years) - 1;
+    }
+  }
+
+  return {
+    sharpe: annualizedReturn !== null && volatility ? (annualizedReturn - RISK_FREE_RATE) / volatility : null,
+    volatility,
+    annualizedReturn,
+    days,
     lowConfidence: days < SHARPE_LOW_CONFIDENCE_DAYS,
   };
 }

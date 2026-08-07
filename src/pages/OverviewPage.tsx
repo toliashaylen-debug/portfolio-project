@@ -1,15 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, PriceStats, MonteCarloResult } from '../types';
+import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, PriceStats, MonteCarloResult, BenchmarkComparison } from '../types';
 import { PORTFOLIO_IDS, PORTFOLIO_INCEPTION, PORTFOLIO_STARTING_BALANCE } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
-import { fmtMoney, fmtPct, chipClass } from '../lib/format';
+import { fmtMoney, fmtPct } from '../lib/format';
 import { loadRealizedPL, realizedPLKey } from '../lib/realizedPL';
+import { loadBenchmarkComparison, benchmarkComparisonKey } from '../lib/benchmarkComparison';
 import { loadPriceStats, PRICE_STATS_KEY } from '../lib/priceStats';
-import { estimateSharpe, runMonteCarlo } from '../lib/montecarlo';
+import { estimateSleeveSharpe, runMonteCarlo, type SleeveSharpeResult } from '../lib/montecarlo';
 import { onKeyChange } from '../lib/storage';
 import AllocationBar from '../components/AllocationBar';
 import DeskTotals from '../components/DeskTotals';
 import MultiFanChart from '../components/MultiFanChart';
+
+function SleeveSharpeCell({ result, loading }: { result: SleeveSharpeResult | null; loading: boolean }) {
+  if (loading) return <span className="mono" style={{ color: 'var(--text-faint)' }}>loading…</span>;
+  if (!result || result.sharpe === null) return <span className="mono" style={{ color: 'var(--text-faint)' }}>—</span>;
+  const tooltip = `${(result.annualizedReturn! * 100).toFixed(1)}% annualized return since inception (${result.days}d) less a 4.5% assumed risk-free rate, over ${(result.volatility! * 100).toFixed(1)}% annualized volatility.`
+    + (result.lowConfidence ? ' Early estimate — under 6 months of live history, can swing a lot as more comes in.' : '');
+  return (
+    <span className="mono" title={tooltip}>
+      {result.sharpe.toFixed(2)}
+      {result.lowConfidence ? <span style={{ color: 'var(--text-faint)', fontSize: '10px', marginLeft: '5px' }}>early est.</span> : null}
+    </span>
+  );
+}
+
+function SleeveVolCell({ result, loading }: { result: SleeveSharpeResult | null; loading: boolean }) {
+  if (loading) return <span className="mono" style={{ color: 'var(--text-faint)' }}>loading…</span>;
+  if (!result || result.volatility === null) return <span className="mono" style={{ color: 'var(--text-faint)' }}>—</span>;
+  return <span className="mono">{(result.volatility * 100).toFixed(1)}%</span>;
+}
 
 export default function OverviewPage({ configs, histories, goTo }: { configs: ConfigsById; histories: Histories; goTo: (page: PortfolioId) => void }) {
   const [realizedPLs, setRealizedPLs] = useState<Partial<Record<PortfolioId, RealizedPLResult | null>>>({});
@@ -31,11 +51,29 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
     return () => unsubs.forEach((u) => u());
   }, []);
 
-  // Every book's Sharpe ratio is computed the same way — the account's own
-  // since-inception return over volatility measured the same way as the
-  // Monte Carlo sim — so all three are on equal, comparable footing rather
-  // than mixing a sheet-stated figure for one book with a computed one for
-  // the others.
+  // Backs the equity/fixed-income Sharpe and volatility split below — each
+  // sleeve's return comes from that book's own sheet-reported benchmark
+  // comparison (when generated), volatility from the same measured inputs
+  // as the Monte Carlo sim.
+  const [benchmarkComparisons, setBenchmarkComparisons] = useState<Partial<Record<PortfolioId, BenchmarkComparison | null>>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const loaded: Partial<Record<PortfolioId, BenchmarkComparison | null>> = {};
+      for (const id of PORTFOLIO_IDS) loaded[id] = await loadBenchmarkComparison(id);
+      if (!cancelled) setBenchmarkComparisons(loaded);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const unsubs = PORTFOLIO_IDS.map((id) =>
+      onKeyChange(benchmarkComparisonKey(id), (v) => setBenchmarkComparisons((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null })))
+    );
+    return () => unsubs.forEach((u) => u());
+  }, []);
+
   const [priceStats, setPriceStats] = useState<PriceStats | null>(null);
   const [priceStatsLoaded, setPriceStatsLoaded] = useState(false);
 
@@ -80,6 +118,12 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
         {PORTFOLIO_IDS.map((id) => {
           const cfg = configs[id];
           const m = portfolioMetrics(histories[id] || []);
+          const cumPct = m ? (m.displayValue - PORTFOLIO_STARTING_BALANCE) / PORTFOLIO_STARTING_BALANCE : null;
+          const bc = benchmarkComparisons[id];
+          const eqReturnPct = bc?.found ? bc.equity.portfolioReturnPct : null;
+          const fiReturnPct = bc?.found ? bc.fixedIncome.portfolioReturnPct : null;
+          const eqResult = m && priceStatsLoaded ? estimateSleeveSharpe(m.positions, 'equity', eqReturnPct, PORTFOLIO_INCEPTION[id], priceStats) : null;
+          const fiResult = m && priceStatsLoaded ? estimateSleeveSharpe(m.positions, 'fixedIncome', fiReturnPct, PORTFOLIO_INCEPTION[id], priceStats) : null;
           return (
             <div className="desk-card clickable" key={id} onClick={() => goTo(id)}>
               <div className="desk-card-top">
@@ -87,53 +131,33 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
                   <div className="desk-card-name">{cfg.name}</div>
                   <div className="desk-card-strategy">{cfg.strategy}</div>
                 </div>
-                {m ? <span className={'desk-chip ' + chipClass(m.dayChangeDollar)}>{m.dayChangePct === null ? 'day 1' : fmtPct(m.dayChangePct)}</span> : null}
               </div>
               {m ? (
                 <>
-                  <div className="desk-card-value mono">{fmtMoney(m.displayValue)}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 'var(--sp-3)', gap: 'var(--sp-3)' }}>
+                    <div className="mono" style={{ fontSize: '18px', fontWeight: 600, letterSpacing: '-0.015em', color: '#FFFFFF' }}>{fmtMoney(m.displayValue)}</div>
+                    <div className="mono" style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em', color: (cumPct ?? 0) >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
+                      {fmtPct(cumPct)}
+                    </div>
+                  </div>
                   {m.reported && m.reported.totalValue !== null ? (
                     <div className="desk-note" style={{ marginTop: '-2px' }}>reported as of {m.reported.totalValueAsOf || m.lastDate}</div>
                   ) : null}
                   <div className="desk-mini-row">
-                    <span>Day change</span>
-                    <span className="mono" style={{ color: (m.dayChangeDollar ?? 0) > 0 ? 'var(--pos)' : (m.dayChangeDollar ?? 0) < 0 ? 'var(--neg)' : 'var(--text-dim)' }}>
-                      {m.dayChangeDollar === null ? '—' : fmtMoney(m.dayChangeDollar)}
-                    </span>
+                    <span>Equity Sharpe</span>
+                    <SleeveSharpeCell result={eqResult} loading={!priceStatsLoaded} />
                   </div>
                   <div className="desk-mini-row">
-                    <span>Unrealized P&amp;L</span>
-                    <span className="mono" style={{ color: m.totalPL >= 0 ? 'var(--pos)' : 'var(--neg)' }}>{fmtMoney(m.totalPL)}</span>
+                    <span>Equity volatility</span>
+                    <SleeveVolCell result={eqResult} loading={!priceStatsLoaded} />
                   </div>
                   <div className="desk-mini-row">
-                    <span>Realized P&amp;L</span>
-                    {realizedPLs[id] ? (
-                      <span className="mono" style={{ color: realizedPLs[id]!.total >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
-                        {fmtMoney(realizedPLs[id]!.total)}
-                      </span>
-                    ) : (
-                      <span className="mono" style={{ color: 'var(--text-faint)' }}>not read yet</span>
-                    )}
+                    <span>Fixed income Sharpe</span>
+                    <SleeveSharpeCell result={fiResult} loading={!priceStatsLoaded} />
                   </div>
                   <div className="desk-mini-row">
-                    <span>Sharpe ratio</span>
-                    {(() => {
-                      // Computed the same way for every book: since-inception return
-                      // over volatility measured the same way as the Monte Carlo sim.
-                      if (!priceStatsLoaded) return <span className="mono" style={{ color: 'var(--text-faint)' }}>loading…</span>;
-                      const est = m ? estimateSharpe(m.positions, m.displayValue, PORTFOLIO_STARTING_BALANCE, PORTFOLIO_INCEPTION[id], priceStats) : null;
-                      if (!est) return <span className="mono" style={{ color: 'var(--text-faint)' }}>too early to estimate</span>;
-                      const tooltip = `${(est.annualizedReturn * 100).toFixed(1)}% annualized return since inception (${est.days}d) less a 4.5% assumed risk-free rate, over ${(est.annualizedVol * 100).toFixed(1)}% annualized volatility (${(est.historicalWeight * 100).toFixed(0)}% measured from real price history, rest assumed).`
-                        + (est.lowConfidence ? ` Only ${est.days} days of live history so far — compounding that out to a full year is a rough extrapolation from a small sample, and this figure can swing a lot as more history comes in.` : '');
-                      return (
-                        <span className="mono" title={tooltip}>
-                          {est.sharpe.toFixed(2)}
-                          {est.lowConfidence ? (
-                            <span style={{ color: 'var(--text-faint)', fontSize: '10px', marginLeft: '5px' }}>early est.</span>
-                          ) : null}
-                        </span>
-                      );
-                    })()}
+                    <span>Fixed income volatility</span>
+                    <SleeveVolCell result={fiResult} loading={!priceStatsLoaded} />
                   </div>
                   <AllocationBar positions={m.positions} reported={m.reported} />
                 </>
