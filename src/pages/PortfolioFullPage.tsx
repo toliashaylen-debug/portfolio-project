@@ -1,5 +1,6 @@
 import type { ConfigsById, Histories, History, PortfolioId } from '../types';
 import PortfolioPage from './PortfolioPage';
+import PerformanceHistoryPage from './PerformanceHistoryPage';
 import AnnualGraphPage from './AnnualGraphPage';
 import BenchmarkComparisonPage from './BenchmarkComparisonPage';
 
@@ -28,6 +29,8 @@ export default function PortfolioFullPage({ id, configs, histories, onHistoryCha
         onStrategyChange={onStrategyChange}
         onNameChange={onNameChange}
       />
+      {sectionDivider}
+      <PerformanceHistoryPage id={id} cfg={cfg} history={history} />
       {sectionDivider}
       <AnnualGraphPage id={id} cfg={cfg} history={history} />
       {sectionDivider}
