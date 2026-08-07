@@ -4,6 +4,7 @@ import { PORTFOLIO_SOURCING } from '../lib/constants';
 import { safeGet, onKeyChange } from '../lib/storage';
 import { sheetAllowed } from '../lib/format';
 import { extractBenchmarkComparison } from '../lib/ai';
+import { loadBenchmarkComparison, saveBenchmarkComparison, benchmarkComparisonKey } from '../lib/benchmarkComparison';
 import ComparisonBlock from '../components/ComparisonBlock';
 
 export default function BenchmarkComparisonPage({ id, cfg }: { id: PortfolioId; cfg: PortfolioConfig }) {
@@ -15,10 +16,23 @@ export default function BenchmarkComparisonPage({ id, cfg }: { id: PortfolioId; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // Persisted so a previously-generated comparison survives navigating away
+  // and back, and so the Overview page can read the same figures (e.g.
+  // Sharpe ratio) without re-running the extraction itself.
+  useEffect(() => {
+    let cancelled = false;
+    loadBenchmarkComparison(id).then((c) => { if (!cancelled) setComparison(c); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    return onKeyChange(benchmarkComparisonKey(id), (v) => setComparison(v ? JSON.parse(v) : null));
+  }, [id]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setRawSheets(null); setLoadError(''); setComparison(null); setError('');
+    setRawSheets(null); setLoadError(''); setError('');
     (async () => {
       try {
         const raw = await safeGet('raw-' + id);
@@ -79,6 +93,7 @@ export default function BenchmarkComparisonPage({ id, cfg }: { id: PortfolioId; 
     try {
       const result = await extractBenchmarkComparison(rawSheets);
       setComparison(result);
+      await saveBenchmarkComparison(id, result);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not generate the comparison.');
     } finally {

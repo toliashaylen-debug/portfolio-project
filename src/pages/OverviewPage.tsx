@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, PortfolioId, RealizedPLResult } from '../types';
+import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, BenchmarkComparison } from '../types';
 import { PORTFOLIO_IDS } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, chipClass } from '../lib/format';
 import { loadRealizedPL, realizedPLKey } from '../lib/realizedPL';
+import { loadBenchmarkComparison, benchmarkComparisonKey } from '../lib/benchmarkComparison';
 import { onKeyChange } from '../lib/storage';
 import AllocationBar from '../components/AllocationBar';
 import DeskTotals from '../components/DeskTotals';
 
+function fmtSharpe(v: number | null | undefined): string {
+  return v === null || v === undefined ? '—' : v.toFixed(2);
+}
+
 export default function OverviewPage({ configs, histories, goTo }: { configs: ConfigsById; histories: Histories; goTo: (page: PortfolioId) => void }) {
   const [realizedPLs, setRealizedPLs] = useState<Partial<Record<PortfolioId, RealizedPLResult | null>>>({});
+  const [benchmarkComparisons, setBenchmarkComparisons] = useState<Partial<Record<PortfolioId, BenchmarkComparison | null>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +30,23 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
   useEffect(() => {
     const unsubs = PORTFOLIO_IDS.map((id) =>
       onKeyChange(realizedPLKey(id), (v) => setRealizedPLs((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null })))
+    );
+    return () => unsubs.forEach((u) => u());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const loaded: Partial<Record<PortfolioId, BenchmarkComparison | null>> = {};
+      for (const id of PORTFOLIO_IDS) loaded[id] = await loadBenchmarkComparison(id);
+      if (!cancelled) setBenchmarkComparisons(loaded);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const unsubs = PORTFOLIO_IDS.map((id) =>
+      onKeyChange(benchmarkComparisonKey(id), (v) => setBenchmarkComparisons((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null })))
     );
     return () => unsubs.forEach((u) => u());
   }, []);
@@ -78,6 +101,18 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
                     ) : (
                       <span className="mono" style={{ color: 'var(--text-faint)' }}>not read yet</span>
                     )}
+                  </div>
+                  <div className="desk-mini-row">
+                    <span>Sharpe (Eq / FI)</span>
+                    {(() => {
+                      const bc = benchmarkComparisons[id];
+                      if (!bc) return <span className="mono" style={{ color: 'var(--text-faint)' }}>not generated yet</span>;
+                      if (!bc.found) return <span className="mono" style={{ color: 'var(--text-faint)' }}>no data found</span>;
+                      const eq = bc.equity.portfolioSharpe;
+                      const fi = bc.fixedIncome.portfolioSharpe;
+                      if (eq === null && fi === null) return <span className="mono" style={{ color: 'var(--text-faint)' }}>not stated in sheet</span>;
+                      return <span className="mono">{fmtSharpe(eq)} / {fmtSharpe(fi)}</span>;
+                    })()}
                   </div>
                   <AllocationBar positions={m.positions} reported={m.reported} />
                 </>
