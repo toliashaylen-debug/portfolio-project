@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, PriceStats } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, PriceStats, MonteCarloResult } from '../types';
 import { PORTFOLIO_IDS, PORTFOLIO_INCEPTION, PORTFOLIO_STARTING_BALANCE } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, chipClass } from '../lib/format';
 import { loadRealizedPL, realizedPLKey } from '../lib/realizedPL';
 import { loadPriceStats, PRICE_STATS_KEY } from '../lib/priceStats';
-import { estimateSharpe } from '../lib/montecarlo';
+import { estimateSharpe, runMonteCarlo } from '../lib/montecarlo';
 import { onKeyChange } from '../lib/storage';
 import AllocationBar from '../components/AllocationBar';
 import DeskTotals from '../components/DeskTotals';
+import MultiFanChart from '../components/MultiFanChart';
 
 export default function OverviewPage({ configs, histories, goTo }: { configs: ConfigsById; histories: Histories; goTo: (page: PortfolioId) => void }) {
   const [realizedPLs, setRealizedPLs] = useState<Partial<Record<PortfolioId, RealizedPLResult | null>>>({});
@@ -55,6 +56,21 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
   const deskRealizedPL = allRealizedPLsRead
     ? PORTFOLIO_IDS.reduce((s, id) => s + realizedPLs[id]!.total, 0)
     : null;
+
+  // One combined 12-month projection per book, overlaid on a single chart
+  // instead of three separate ones — same sim engine and inputs as each
+  // book's own Annual Graph page.
+  const sims = useMemo(() => {
+    if (!priceStatsLoaded) return null;
+    return PORTFOLIO_IDS.map((id) => {
+      const hist = histories[id] || [];
+      const positions = hist.length ? hist[hist.length - 1].positions : [];
+      const asOfDate = hist.length ? hist[hist.length - 1].date : null;
+      const sim = runMonteCarlo(positions, 2000, 12, asOfDate, priceStats);
+      return sim ? { id, label: configs[id].name, sim } : null;
+    }).filter((s): s is { id: PortfolioId; label: string; sim: MonteCarloResult } => s !== null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histories, priceStats, priceStatsLoaded, configs]);
 
   return (
     <div>
@@ -129,6 +145,40 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
         })}
       </div>
       <DeskTotals configs={configs} histories={histories} realizedPL={deskRealizedPL} />
+
+      <div className="desk-panel">
+        <div style={{ display: 'inline-block', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '11px', fontWeight: 600, padding: '3px 9px', borderRadius: '4px', marginBottom: 'var(--sp-3)', letterSpacing: '0.02em' }}>
+          MONTE CARLO SIMULATION
+        </div>
+        <h3>Annual Graph — all three books</h3>
+        {!priceStatsLoaded ? (
+          <div className="desk-note"><span className="desk-spin" />Running simulations…</div>
+        ) : !sims || !sims.length ? (
+          <div className="desk-note">Not enough position data yet to run a simulation for any book.</div>
+        ) : (
+          <>
+            <div className="desk-sub" style={{ marginTop: 0 }}>
+              Median 12-month projected path for each book, same {sims[0].sim.numSims.toLocaleString()}-simulation Monte Carlo engine as each book's own Annual Graph page. Not a forecast.
+            </div>
+            <MultiFanChart series={sims.map((s) => ({ label: s.label, sim: s.sim }))} />
+            <div className="desk-grid3" style={{ marginTop: 'var(--sp-4)' }}>
+              {sims.map((s) => {
+                const final = s.sim.summary[s.sim.numMonths];
+                const pct = (final.median - s.sim.totalValue) / s.sim.totalValue;
+                return (
+                  <div className="desk-card" key={s.id}>
+                    <div className="desk-card-name">{s.label}</div>
+                    <div className="mono" style={{ fontSize: '18px', fontWeight: 600, marginTop: '7px', color: pct >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
+                      {fmtMoney(final.median)} <span style={{ fontSize: '13px' }}>({fmtPct(pct)})</span>
+                    </div>
+                    <div className="desk-note" style={{ marginTop: '3px' }}>projected median (12mo) vs. today</div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

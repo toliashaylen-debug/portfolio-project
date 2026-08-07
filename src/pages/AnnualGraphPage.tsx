@@ -149,7 +149,7 @@ export default function AnnualGraphPage({ cfg, history }: { id: PortfolioId; cfg
       </div>
 
       <div className="desk-grid3" style={{ marginBottom: 'var(--sp-5)' }}>
-        <RiskBadge label="Median outcome (12mo)" valueLabel={fmtMoney(final.median)} level="low" sub={fmtPct(finalMedianPct) + ' vs. today'} />
+        <RiskBadge label="Median outcome (12mo)" valueLabel={`${fmtMoney(final.median)} (${fmtPct(finalMedianPct)})`} level="low" sub="projected median vs. today" />
         <RiskBadge label="95% Value at Risk" valueLabel={fmtMoney(sim.var95Loss)} level="moderate" sub="potential loss — 5% chance of doing worse" />
         <RiskBadge label="95% CVaR (expected shortfall)" valueLabel={fmtMoney(sim.cvar95Loss)} level="high" sub="average loss in that worst 5% of outcomes" />
       </div>
