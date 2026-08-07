@@ -96,6 +96,7 @@ export function computePortfolioVolatility(positions: Position[], stats?: PriceS
 
 const RISK_FREE_RATE = 0.045; // Same fixed-income return assumption used elsewhere in this file — reused for consistency, not a distinct estimate.
 const MIN_DAYS_FOR_SHARPE_ESTIMATE = 14; // Below this, annualizing a return produces a wild, meaningless swing.
+const SHARPE_LOW_CONFIDENCE_DAYS = 180; // Below ~6 months of live history, a compounded annualized return is a rough extrapolation from a small sample — flag it rather than present it as settled.
 
 export interface EstimatedSharpe {
   sharpe: number;
@@ -103,6 +104,8 @@ export interface EstimatedSharpe {
   annualizedVol: number;
   days: number;
   historicalWeight: number;
+  /** True while there's under ~6 months of live account history — the annualized return driving this figure is extrapolated from a short sample and can swing a lot as more history comes in. */
+  lowConfidence: boolean;
 }
 
 /**
@@ -135,6 +138,7 @@ export function estimateSharpe(
     annualizedVol: volResult.vol,
     days: Math.round(days),
     historicalWeight: volResult.historicalWeight,
+    lowConfidence: days < SHARPE_LOW_CONFIDENCE_DAYS,
   };
 }
 

@@ -107,12 +107,14 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
                       if (!priceStatsLoaded) return <span className="mono" style={{ color: 'var(--text-faint)' }}>loading…</span>;
                       const est = m ? estimateSharpe(m.positions, m.displayValue, PORTFOLIO_STARTING_BALANCE, PORTFOLIO_INCEPTION[id], priceStats) : null;
                       if (!est) return <span className="mono" style={{ color: 'var(--text-faint)' }}>too early to estimate</span>;
+                      const tooltip = `${(est.annualizedReturn * 100).toFixed(1)}% annualized return since inception (${est.days}d) less a 4.5% assumed risk-free rate, over ${(est.annualizedVol * 100).toFixed(1)}% annualized volatility (${(est.historicalWeight * 100).toFixed(0)}% measured from real price history, rest assumed).`
+                        + (est.lowConfidence ? ` Only ${est.days} days of live history so far — compounding that out to a full year is a rough extrapolation from a small sample, and this figure can swing a lot as more history comes in.` : '');
                       return (
-                        <span
-                          className="mono"
-                          title={`${(est.annualizedReturn * 100).toFixed(1)}% annualized return since inception (${est.days}d) less a 4.5% assumed risk-free rate, over ${(est.annualizedVol * 100).toFixed(1)}% annualized volatility (${(est.historicalWeight * 100).toFixed(0)}% measured from real price history, rest assumed).`}
-                        >
+                        <span className="mono" title={tooltip}>
                           {est.sharpe.toFixed(2)}
+                          {est.lowConfidence ? (
+                            <span style={{ color: 'var(--text-faint)', fontSize: '10px', marginLeft: '5px' }}>early est.</span>
+                          ) : null}
                         </span>
                       );
                     })()}
