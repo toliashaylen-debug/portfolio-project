@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, BenchmarkComparison } from '../types';
-import { PORTFOLIO_IDS } from '../lib/constants';
+import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, BenchmarkComparison, PriceStats } from '../types';
+import { PORTFOLIO_IDS, PORTFOLIO_INCEPTION, PORTFOLIO_STARTING_BALANCE } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, chipClass } from '../lib/format';
 import { loadRealizedPL, realizedPLKey } from '../lib/realizedPL';
 import { loadBenchmarkComparison, benchmarkComparisonKey } from '../lib/benchmarkComparison';
+import { loadPriceStats, PRICE_STATS_KEY } from '../lib/priceStats';
+import { estimateSharpe } from '../lib/montecarlo';
 import { onKeyChange } from '../lib/storage';
 import AllocationBar from '../components/AllocationBar';
 import DeskTotals from '../components/DeskTotals';
@@ -49,6 +51,21 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
       onKeyChange(benchmarkComparisonKey(id), (v) => setBenchmarkComparisons((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null })))
     );
     return () => unsubs.forEach((u) => u());
+  }, []);
+
+  // Backs the computed-Sharpe fallback below, for books whose own sheet
+  // doesn't state a Sharpe ratio directly.
+  const [priceStats, setPriceStats] = useState<PriceStats | null>(null);
+  const [priceStatsLoaded, setPriceStatsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadPriceStats().then((s) => { if (!cancelled) { setPriceStats(s); setPriceStatsLoaded(true); } });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    return onKeyChange(PRICE_STATS_KEY, (v) => { try { setPriceStats(v ? JSON.parse(v) : null); } catch { /* keep previous */ } });
   }, []);
 
   // Only add up what's actually been read for every book — a partial desk
@@ -103,15 +120,33 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
                     )}
                   </div>
                   <div className="desk-mini-row">
-                    <span>Sharpe (Eq / FI)</span>
+                    <span>Sharpe ratio</span>
                     {(() => {
                       const bc = benchmarkComparisons[id];
-                      if (!bc) return <span className="mono" style={{ color: 'var(--text-faint)' }}>not generated yet</span>;
-                      if (!bc.found) return <span className="mono" style={{ color: 'var(--text-faint)' }}>no data found</span>;
-                      const eq = bc.equity.portfolioSharpe;
-                      const fi = bc.fixedIncome.portfolioSharpe;
-                      if (eq === null && fi === null) return <span className="mono" style={{ color: 'var(--text-faint)' }}>not stated in sheet</span>;
-                      return <span className="mono">{fmtSharpe(eq)} / {fmtSharpe(fi)}</span>;
+                      const eq = bc?.found ? bc.equity.portfolioSharpe : null;
+                      const fi = bc?.found ? bc.fixedIncome.portfolioSharpe : null;
+                      if (eq !== null || fi !== null) {
+                        return (
+                          <span className="mono">
+                            {fmtSharpe(eq)} / {fmtSharpe(fi)}{' '}
+                            <span style={{ color: 'var(--text-faint)', fontSize: '10px' }}>sheet, Eq/FI</span>
+                          </span>
+                        );
+                      }
+                      // Sheet doesn't state one — fall back to a computed estimate from
+                      // the book's own since-inception return and measured volatility.
+                      if (!priceStatsLoaded) return <span className="mono" style={{ color: 'var(--text-faint)' }}>loading…</span>;
+                      const est = m ? estimateSharpe(m.positions, m.displayValue, PORTFOLIO_STARTING_BALANCE, PORTFOLIO_INCEPTION[id], priceStats) : null;
+                      if (!est) return <span className="mono" style={{ color: 'var(--text-faint)' }}>too early to estimate</span>;
+                      return (
+                        <span
+                          className="mono"
+                          style={{ color: 'var(--accent)' }}
+                          title={`Estimated, not sheet-stated: ${(est.annualizedReturn * 100).toFixed(1)}% annualized return since inception (${est.days}d) less a 4.5% assumed risk-free rate, over ${(est.annualizedVol * 100).toFixed(1)}% annualized volatility (${(est.historicalWeight * 100).toFixed(0)}% measured from real price history, rest assumed).`}
+                        >
+                          {est.sharpe.toFixed(2)} <span style={{ color: 'var(--text-faint)', fontSize: '10px' }}>est.</span>
+                        </span>
+                      );
                     })()}
                   </div>
                   <AllocationBar positions={m.positions} reported={m.reported} />

@@ -32,21 +32,11 @@ function assumptionsFor(p: Position): { mean: number; vol: number } {
   return { mean: 0.06, vol: 0.15 };
 }
 
-export function runMonteCarlo(
-  positions: Position[],
-  numSims = 2000,
-  numMonths = 12,
-  asOfDateStr?: string | null,
-  stats?: PriceStats | null,
-): MonteCarloResult | null {
-  if (!positions || !positions.length) return null;
-  const totalValue = positions.reduce((s, p) => s + valueOf(p), 0);
-  if (!totalValue) return null;
-
-  // Volatility prefers realised history when we have it; expected return always
-  // stays forward-looking, since trailing realised return is a poor estimator of
-  // future return (a name that compounded 40%/yr does not have a 40% drift).
-  const assets: MonteCarloAsset[] = positions.map((p) => {
+// Volatility prefers realised history when we have it; expected return always
+// stays forward-looking, since trailing realised return is a poor estimator of
+// future return (a name that compounded 40%/yr does not have a 40% drift).
+function buildAssets(positions: Position[], totalValue: number, stats?: PriceStats | null): MonteCarloAsset[] {
+  return positions.map((p) => {
     const weight = valueOf(p) / totalValue;
     const { mean, vol } = assumptionsFor(p);
     const hist = stats?.byTicker?.[p.ticker];
@@ -62,8 +52,10 @@ export function runMonteCarlo(
       volFromHistory: useHist,
     };
   });
-  const n = assets.length;
+}
 
+function buildCorrMatrix(assets: MonteCarloAsset[], stats?: PriceStats | null): { corr: number[][]; corrPairsHistorical: number; corrPairsTotal: number } {
+  const n = assets.length;
   let corrPairsHistorical = 0;
   let corrPairsTotal = 0;
   const corr: number[][] = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => {
@@ -82,6 +74,84 @@ export function runMonteCarlo(
     if (a.sector && b.sector && a.sector.trim().toLowerCase() === b.sector.trim().toLowerCase()) return 0.6;
     return 0.35;
   }));
+  return { corr, corrPairsHistorical, corrPairsTotal };
+}
+
+/** Portfolio-level annualized volatility from the same measured/assumed inputs as the Monte Carlo sim, without running the simulation itself. */
+export function computePortfolioVolatility(positions: Position[], stats?: PriceStats | null): { vol: number; historicalWeight: number } | null {
+  if (!positions || !positions.length) return null;
+  const totalValue = positions.reduce((s, p) => s + valueOf(p), 0);
+  if (!totalValue) return null;
+  const assets = buildAssets(positions, totalValue, stats);
+  const { corr } = buildCorrMatrix(assets, stats);
+  let variance = 0;
+  for (let i = 0; i < assets.length; i++) {
+    for (let j = 0; j < assets.length; j++) {
+      variance += assets[i].weight * assets[j].weight * assets[i].vol * assets[j].vol * corr[i][j];
+    }
+  }
+  const historicalWeight = assets.reduce((s, a) => s + (a.volFromHistory ? a.weight : 0), 0);
+  return { vol: Math.sqrt(Math.max(variance, 0)), historicalWeight };
+}
+
+const RISK_FREE_RATE = 0.045; // Same fixed-income return assumption used elsewhere in this file — reused for consistency, not a distinct estimate.
+const MIN_DAYS_FOR_SHARPE_ESTIMATE = 14; // Below this, annualizing a return produces a wild, meaningless swing.
+
+export interface EstimatedSharpe {
+  sharpe: number;
+  annualizedReturn: number;
+  annualizedVol: number;
+  days: number;
+  historicalWeight: number;
+}
+
+/**
+ * Fallback Sharpe ratio for books whose own sheet doesn't state one: the
+ * account's own return since inception (annualized), less the stated
+ * risk-free assumption, over volatility measured the same way as the Monte
+ * Carlo sim. Only used when nothing is directly reported — never overrides
+ * a sheet-stated figure.
+ */
+export function estimateSharpe(
+  positions: Position[],
+  displayValue: number,
+  startingBalance: number,
+  inceptionDateStr: string,
+  stats?: PriceStats | null,
+): EstimatedSharpe | null {
+  const inception = new Date(inceptionDateStr + 'T00:00:00Z');
+  if (isNaN(inception.getTime()) || !startingBalance) return null;
+  const days = (Date.now() - inception.getTime()) / 86400000;
+  if (days < MIN_DAYS_FOR_SHARPE_ESTIMATE) return null;
+  const totalReturn = (displayValue - startingBalance) / startingBalance;
+  if (totalReturn <= -1) return null;
+  const years = days / 365.25;
+  const annualizedReturn = Math.pow(1 + totalReturn, 1 / years) - 1;
+  const volResult = computePortfolioVolatility(positions, stats);
+  if (!volResult || volResult.vol <= 0) return null;
+  return {
+    sharpe: (annualizedReturn - RISK_FREE_RATE) / volResult.vol,
+    annualizedReturn,
+    annualizedVol: volResult.vol,
+    days: Math.round(days),
+    historicalWeight: volResult.historicalWeight,
+  };
+}
+
+export function runMonteCarlo(
+  positions: Position[],
+  numSims = 2000,
+  numMonths = 12,
+  asOfDateStr?: string | null,
+  stats?: PriceStats | null,
+): MonteCarloResult | null {
+  if (!positions || !positions.length) return null;
+  const totalValue = positions.reduce((s, p) => s + valueOf(p), 0);
+  if (!totalValue) return null;
+
+  const assets = buildAssets(positions, totalValue, stats);
+  const n = assets.length;
+  const { corr, corrPairsHistorical, corrPairsTotal } = buildCorrMatrix(assets, stats);
 
   const monthlyMean = assets.map((a) => a.mean / 12);
   const monthlyVol = assets.map((a) => a.vol / Math.sqrt(12));

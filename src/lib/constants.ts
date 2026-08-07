@@ -3,6 +3,16 @@ import type { PortfolioId, PortfolioSourcing, Sleeve } from '../types';
 export const PORTFOLIO_IDS: PortfolioId[] = ['p1', 'p2', 'p3'];
 export const DEFAULT_NAMES = ["Shaylen's Portfolio", "Antonio's Portfolio", "Israel's Portfolio"];
 
+/** Each book's own true inception date — confirmed from the earliest dated row in that book's own transaction log, not the date a snapshot happened to be uploaded. Used to annualize since-inception return for a computed Sharpe ratio. */
+export const PORTFOLIO_INCEPTION: Record<PortfolioId, string> = {
+  p1: '2026-06-24',
+  p2: '2026-06-30',
+  p3: '2026-06-24',
+};
+
+/** Each book's starting balance, used as the base for since-inception return. */
+export const PORTFOLIO_STARTING_BALANCE = 2_000_000;
+
 export const PORTFOLIO_SOURCING: Record<PortfolioId, PortfolioSourcing | null> = {
   p1: {
     positionsSheets: ['portfolio - cover page', 'cover page'],
