@@ -1,23 +1,17 @@
 import { useEffect, useState } from 'react';
-import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, BenchmarkComparison, PriceStats } from '../types';
+import type { ConfigsById, Histories, PortfolioId, RealizedPLResult, PriceStats } from '../types';
 import { PORTFOLIO_IDS, PORTFOLIO_INCEPTION, PORTFOLIO_STARTING_BALANCE } from '../lib/constants';
 import { portfolioMetrics } from '../lib/compute';
 import { fmtMoney, fmtPct, chipClass } from '../lib/format';
 import { loadRealizedPL, realizedPLKey } from '../lib/realizedPL';
-import { loadBenchmarkComparison, benchmarkComparisonKey } from '../lib/benchmarkComparison';
 import { loadPriceStats, PRICE_STATS_KEY } from '../lib/priceStats';
 import { estimateSharpe } from '../lib/montecarlo';
 import { onKeyChange } from '../lib/storage';
 import AllocationBar from '../components/AllocationBar';
 import DeskTotals from '../components/DeskTotals';
 
-function fmtSharpe(v: number | null | undefined): string {
-  return v === null || v === undefined ? '—' : v.toFixed(2);
-}
-
 export default function OverviewPage({ configs, histories, goTo }: { configs: ConfigsById; histories: Histories; goTo: (page: PortfolioId) => void }) {
   const [realizedPLs, setRealizedPLs] = useState<Partial<Record<PortfolioId, RealizedPLResult | null>>>({});
-  const [benchmarkComparisons, setBenchmarkComparisons] = useState<Partial<Record<PortfolioId, BenchmarkComparison | null>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -36,25 +30,11 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
     return () => unsubs.forEach((u) => u());
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const loaded: Partial<Record<PortfolioId, BenchmarkComparison | null>> = {};
-      for (const id of PORTFOLIO_IDS) loaded[id] = await loadBenchmarkComparison(id);
-      if (!cancelled) setBenchmarkComparisons(loaded);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    const unsubs = PORTFOLIO_IDS.map((id) =>
-      onKeyChange(benchmarkComparisonKey(id), (v) => setBenchmarkComparisons((prev) => ({ ...prev, [id]: v ? JSON.parse(v) : null })))
-    );
-    return () => unsubs.forEach((u) => u());
-  }, []);
-
-  // Backs the computed-Sharpe fallback below, for books whose own sheet
-  // doesn't state a Sharpe ratio directly.
+  // Every book's Sharpe ratio is computed the same way — the account's own
+  // since-inception return over volatility measured the same way as the
+  // Monte Carlo sim — so all three are on equal, comparable footing rather
+  // than mixing a sheet-stated figure for one book with a computed one for
+  // the others.
   const [priceStats, setPriceStats] = useState<PriceStats | null>(null);
   const [priceStatsLoaded, setPriceStatsLoaded] = useState(false);
 
@@ -122,29 +102,17 @@ export default function OverviewPage({ configs, histories, goTo }: { configs: Co
                   <div className="desk-mini-row">
                     <span>Sharpe ratio</span>
                     {(() => {
-                      const bc = benchmarkComparisons[id];
-                      const eq = bc?.found ? bc.equity.portfolioSharpe : null;
-                      const fi = bc?.found ? bc.fixedIncome.portfolioSharpe : null;
-                      if (eq !== null || fi !== null) {
-                        return (
-                          <span className="mono">
-                            {fmtSharpe(eq)} / {fmtSharpe(fi)}{' '}
-                            <span style={{ color: 'var(--text-faint)', fontSize: '10px' }}>sheet, Eq/FI</span>
-                          </span>
-                        );
-                      }
-                      // Sheet doesn't state one — fall back to a computed estimate from
-                      // the book's own since-inception return and measured volatility.
+                      // Computed the same way for every book: since-inception return
+                      // over volatility measured the same way as the Monte Carlo sim.
                       if (!priceStatsLoaded) return <span className="mono" style={{ color: 'var(--text-faint)' }}>loading…</span>;
                       const est = m ? estimateSharpe(m.positions, m.displayValue, PORTFOLIO_STARTING_BALANCE, PORTFOLIO_INCEPTION[id], priceStats) : null;
                       if (!est) return <span className="mono" style={{ color: 'var(--text-faint)' }}>too early to estimate</span>;
                       return (
                         <span
                           className="mono"
-                          style={{ color: 'var(--accent)' }}
-                          title={`Estimated, not sheet-stated: ${(est.annualizedReturn * 100).toFixed(1)}% annualized return since inception (${est.days}d) less a 4.5% assumed risk-free rate, over ${(est.annualizedVol * 100).toFixed(1)}% annualized volatility (${(est.historicalWeight * 100).toFixed(0)}% measured from real price history, rest assumed).`}
+                          title={`${(est.annualizedReturn * 100).toFixed(1)}% annualized return since inception (${est.days}d) less a 4.5% assumed risk-free rate, over ${(est.annualizedVol * 100).toFixed(1)}% annualized volatility (${(est.historicalWeight * 100).toFixed(0)}% measured from real price history, rest assumed).`}
                         >
-                          {est.sharpe.toFixed(2)} <span style={{ color: 'var(--text-faint)', fontSize: '10px' }}>est.</span>
+                          {est.sharpe.toFixed(2)}
                         </span>
                       );
                     })()}
